@@ -1,26 +1,62 @@
-# PYTHON_ARGCOMPLETE_OK
-
 import argparse
-from typing import Sequence
+import sys
+from collections.abc import Sequence
 
-import argcomplete
+from qm_template import PROGRAM, __version__
+from qm_template.commands import COMMANDS
+from qm_template.config import load_settings, resolve_config_path
+from qm_template.errors import QmTemplateError, UserCancelled
+from qm_template.log import log, setup_logging
 
-from qm_template import __version__
 
-
-def create_parser() -> argparse.ArgumentParser:
+def build_parser() -> argparse.ArgumentParser:
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument(
+        "--config",
+        metavar="PATH",
+        default=argparse.SUPPRESS,
+        help="configuration file (default: /etc/qm-template/config.toml)",
+    )
     parser = argparse.ArgumentParser(
-        description="Proxmox VE template helper scripts",
+        prog=PROGRAM,
+        description="Download cloud images and create Proxmox VE VM templates.",
+        parents=[common],
     )
     parser.add_argument(
-        "--version",
-        action="version",
-        version=f"%(prog)s {__version__}",
+        "--version", action="version", version=f"%(prog)s {__version__}"
     )
+    subparsers = parser.add_subparsers(dest="command", metavar="COMMAND", required=True)
+    for command in COMMANDS:
+        subparser = subparsers.add_parser(
+            command.name,
+            aliases=list(command.aliases),
+            parents=[common],
+            help=command.help,
+            description=command.description,
+        )
+        command.add_arguments(subparser)
+        subparser.set_defaults(handler=command.run)
     return parser
 
 
-def main(argv: Sequence[str] | None = None) -> None:
-    parser = create_parser()
-    argcomplete.autocomplete(parser)
-    parser.parse_args(argv)
+def main(argv: Sequence[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    setup_logging()
+    try:
+        config_path, explicit = resolve_config_path(getattr(args, "config", None))
+        settings = load_settings(config_path, explicit=explicit)
+        args.handler(args, settings)
+    except UserCancelled:
+        log.info("Operation cancelled by user")
+        return 0
+    except QmTemplateError as exc:
+        log.error("%s", exc)
+        return 1
+    except KeyboardInterrupt:
+        log.warning("Interrupted")
+        return 130
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

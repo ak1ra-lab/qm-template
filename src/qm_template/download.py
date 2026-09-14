@@ -1,0 +1,133 @@
+import shlex
+import shutil
+import subprocess
+from abc import ABC, abstractmethod
+from collections.abc import Sequence
+from pathlib import Path
+from typing import ClassVar
+
+from qm_template.distros import RemoteImage
+from qm_template.errors import QmTemplateError
+from qm_template.log import log
+
+
+class Downloader(ABC):
+    """Wraps an external download command with resume support."""
+
+    name: ClassVar[str]
+
+    @classmethod
+    def available(cls) -> bool:
+        return shutil.which(cls.name) is not None
+
+    @abstractmethod
+    def build_command(self, url: str, destination: Path) -> list[str]: ...
+
+
+class Aria2c(Downloader):
+    name = "aria2c"
+
+    def build_command(self, url: str, destination: Path) -> list[str]:
+        return [
+            self.name,
+            "--continue=true",
+            "--auto-file-renaming=false",
+            "--allow-overwrite=true",
+            "--file-allocation=none",
+            "--console-log-level=warn",
+            "--summary-interval=0",
+            f"--dir={destination.parent}",
+            f"--out={destination.name}",
+            url,
+        ]
+
+
+class Wget(Downloader):
+    name = "wget"
+
+    def build_command(self, url: str, destination: Path) -> list[str]:
+        return [
+            self.name,
+            "--continue",
+            "--quiet",
+            "--show-progress",
+            f"--output-document={destination}",
+            url,
+        ]
+
+
+class Curl(Downloader):
+    name = "curl"
+
+    def build_command(self, url: str, destination: Path) -> list[str]:
+        return [
+            self.name,
+            "--location",
+            "--fail",
+            "--continue-at",
+            "-",
+            "--retry",
+            "5",
+            "--retry-delay",
+            "2",
+            "--output",
+            str(destination),
+            url,
+        ]
+
+
+DOWNLOADERS: dict[str, Downloader] = {
+    downloader.name: downloader for downloader in (Aria2c(), Wget(), Curl())
+}
+
+
+def select_downloaders(preferred: Sequence[str]) -> list[Downloader]:
+    selected = []
+    for name in preferred:
+        downloader = DOWNLOADERS.get(name)
+        if downloader is None:
+            log.warning("Unknown downloader %r in configuration", name)
+            continue
+        if downloader.available():
+            selected.append(downloader)
+        else:
+            log.debug("%s is not installed", name)
+    if not selected:
+        raise QmTemplateError(
+            "none of the preferred downloaders are available: " + ", ".join(preferred)
+        )
+    return selected
+
+
+def _run_downloaders(url: str, part: Path, downloaders: Sequence[Downloader]) -> bool:
+    for downloader in downloaders:
+        command = downloader.build_command(url, part)
+        log.info("Downloading %s with %s", part.name, downloader.name)
+        log.debug("Running: %s", shlex.join(command))
+        try:
+            result = subprocess.run(command)
+        except OSError as exc:
+            log.warning("could not run %s: %s", downloader.name, exc)
+            continue
+        if result.returncode == 0 and part.is_file() and part.stat().st_size > 0:
+            return True
+        log.warning("%s failed with exit status %d", downloader.name, result.returncode)
+    return False
+
+
+def download_image(
+    image: RemoteImage,
+    destination: Path,
+    downloaders: Sequence[Downloader],
+) -> Path:
+    part = destination.with_name(destination.name + ".part")
+    if part.is_file():
+        log.info("Found a partial download, attempting to resume")
+    if _run_downloaders(image.url, part, downloaders):
+        return part
+    if part.is_file():
+        log.warning("Removing partial download and retrying from scratch")
+        part.unlink()
+        if _run_downloaders(image.url, part, downloaders):
+            return part
+    raise QmTemplateError(f"failed to download {image.url}")
