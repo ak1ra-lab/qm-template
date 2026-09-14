@@ -2,7 +2,12 @@ from pathlib import Path
 
 import pytest
 
-from qm_template.config import default_config_path, load_settings, parse_settings
+from qm_template.config import (
+    default_config_path,
+    load_settings,
+    parse_settings,
+    write_default_config,
+)
 from qm_template.errors import QmTemplateError
 
 
@@ -60,6 +65,21 @@ def test_parse_overrides():
         "~/.ssh/id_ed25519.pub",
         "/etc/keys.pub",
     )
+
+
+def test_write_default_config_creates_file(tmp_path):
+    path = tmp_path / "etc" / "config.toml"
+    assert write_default_config(path) is True
+    settings = load_settings(path, explicit=True)
+    assert settings.download.default_distro == "debian"
+    assert settings.create.sshkeys_files == ()
+
+
+def test_write_default_config_keeps_existing_file(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text("# keep me\n")
+    assert write_default_config(path) is False
+    assert path.read_text() == "# keep me\n"
 
 
 def test_unknown_distro_section_raises():

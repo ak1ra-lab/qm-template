@@ -1,0 +1,90 @@
+# qm-template configuration
+#
+# Default location:
+#   /etc/qm-template/config.toml
+#
+# Every setting is optional; the values shown here are the built-in defaults.
+
+[paths]
+# Directory where downloaded cloud images are stored.
+images_dir = "/var/lib/qm-template"
+
+[download]
+# Downloader preference order; the first available command is used.
+preferred = ["axel", "aria2c", "wget", "curl"]
+
+# Parallel connections per file for axel and aria2c; ignored by wget and curl.
+connections = 8
+
+# Distro used when `qm-template download` is called without a name.
+default_distro = "debian"
+
+# Per-distro overrides for `qm-template download`. Any table can be removed to
+# fall back to the built-in defaults shown by `qm-template distros`.
+
+[download.debian]
+release = "trixie"       # codename, optionally with -backports
+variant = "genericcloud" # genericcloud, generic, nocloud
+arch = "amd64"           # amd64, arm64
+
+[download.ubuntu]
+release = "resolute"     # codename, e.g. noble, jammy
+variant = "server"       # server, minimal
+arch = "amd64"
+
+[download.rocky]
+release = "10"
+variant = "GenericCloud" # GenericCloud, GenericCloud-LVM
+arch = "x86_64"
+
+[download.almalinux]
+release = "10"
+variant = "GenericCloud" # GenericCloud, GenericCloud-ext4
+arch = "x86_64"
+
+[download.fedora]
+release = "44"
+variant = "Generic"      # Generic, UEFI-UKI
+arch = "x86_64"
+
+[download.centos]
+release = "10"
+variant = "GenericCloud"
+arch = "x86_64"
+
+[download.alpine]
+release = "3.24"
+variant = "generic"      # generic, nocloud
+arch = "x86_64"
+
+[download.opensuse]
+release = "tumbleweed"   # tumbleweed or a Leap version, e.g. "15.6"
+variant = "Minimal"
+arch = "x86_64"
+
+[download.archlinux]
+release = "latest"
+variant = "cloudimg"     # cloudimg, basic
+arch = "x86_64"
+
+[create]
+# Proxmox storage for the imported disk and the Cloud-Init drive.
+storage = "local-lvm"
+cores = 1
+memory = 1024
+bridge = "vmbr0"
+ciuser = "debian"
+# Kept as a fixed default so the console rescue password stays predictable;
+# change it here to use something else.
+cipassword = "debian"
+
+# SSH public keys injected via Cloud-Init. Inline keys in sshkeys and the
+# contents of every sshkeys_files entry are merged and deduplicated by SSH key
+# fingerprint; at least one key is required. Each inline entry must look like
+# an SSH public key. No key file is read unless configured here.
+sshkeys = [
+    # "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... user@example.com",
+]
+sshkeys_files = [
+    # "~/.ssh/id_ed25519.pub",
+]

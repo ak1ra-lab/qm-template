@@ -35,3 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--dry-run` pretty prints the command that would run: `download` shows the
   first available downloader's command and `create` shows the assembled
   `qm create` invocation, one argument group per line.
+- The default configuration is packaged in the wheel and written to
+  `/etc/qm-template/config.toml` on first run when the file does not exist;
+  paths given with `--config` or `QM_TEMPLATE_CONFIG` are never created
+  implicitly.

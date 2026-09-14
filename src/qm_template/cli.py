@@ -4,7 +4,7 @@ from collections.abc import Sequence
 
 from qm_template import PROGRAM, __version__
 from qm_template.commands import COMMANDS
-from qm_template.config import load_settings, resolve_config_path
+from qm_template.config import load_settings, resolve_config_path, write_default_config
 from qm_template.errors import QmTemplateError, UserCancelled
 from qm_template.log import log, setup_logging
 
@@ -44,6 +44,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     setup_logging()
     try:
         config_path, explicit = resolve_config_path(getattr(args, "config", None))
+        if not explicit:
+            write_default_config(config_path)
         settings = load_settings(config_path, explicit=explicit)
         args.handler(args, settings)
     except UserCancelled:

@@ -25,8 +25,9 @@ uv tool install .
 ## Configuration
 
 The configuration file is optional and loaded from
-`/etc/qm-template/config.toml`. Use `--config PATH` or `QM_TEMPLATE_CONFIG` to
-point elsewhere. Downloaded images are stored in `/var/lib/qm-template` unless
+`/etc/qm-template/config.toml`. It is created with the built-in defaults on
+first run; use `--config PATH` or `QM_TEMPLATE_CONFIG` to point elsewhere.
+Downloaded images are stored in `/var/lib/qm-template` unless
 `paths.images_dir` overrides it, mirroring the upstream layout:
 
 ```text
@@ -37,8 +38,7 @@ point elsewhere. Downloaded images are stored in `/var/lib/qm-template` unless
 number of parallel connections for `axel` and `aria2c`. `create.sshkeys` lists
 inline SSH public keys and `create.sshkeys_files` lists key files; the contents
 of both are merged and deduplicated by key fingerprint for Cloud-Init, and at
-least one key is required. Start
-from the example configuration:
+least one key is required. To create the file manually instead:
 
 ```shell
 install -d /etc/qm-template

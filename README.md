@@ -49,10 +49,11 @@ uv run qm-template --help
 
 ## Configuration
 
-The configuration file is optional and loaded from `/etc/qm-template/config.toml`.
-Use `--config PATH` or `QM_TEMPLATE_CONFIG` to point elsewhere. Downloaded
-images are stored in `/var/lib/qm-template` unless `paths.images_dir` overrides
-it, mirroring the upstream layout:
+The configuration file is optional and loaded from
+`/etc/qm-template/config.toml`. It is created with the built-in defaults on
+first run; use `--config PATH` or `QM_TEMPLATE_CONFIG` to point elsewhere.
+Downloaded images are stored in `/var/lib/qm-template` unless
+`paths.images_dir` overrides it, mirroring the upstream layout:
 
 ```text
 <images_dir>/<distro>/<release>/[<tag>/]<filename>
@@ -62,7 +63,7 @@ it, mirroring the upstream layout:
 number of parallel connections for `axel` and `aria2c`. `create.sshkeys` lists
 inline SSH public keys and `create.sshkeys_files` lists key files; the contents
 of both are merged and deduplicated by key fingerprint for Cloud-Init, and at
-least one key is required. Start from the example file:
+least one key is required. To create the file manually instead:
 
 ```shell
 install -d /etc/qm-template
@@ -178,8 +179,9 @@ qm-template/
 ├── src/qm_template/
 │   ├── cli.py          # argument parsing and entry point
 │   ├── commands.py     # download / create / distros commands
-│   ├── config.py       # TOML settings
+│   ├── config.py       # TOML settings and first-run config seeding
 │   ├── checksum.py     # checksum parsing and verification
+│   ├── config.default.toml  # default configuration shipped in the wheel
 │   ├── download.py     # axel / aria2c / wget / curl wrappers
 │   ├── http.py         # HTTP helpers and directory listings
 │   ├── log.py          # logging setup

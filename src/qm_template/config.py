@@ -5,6 +5,7 @@ import os
 import tomllib
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from importlib import resources
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +30,25 @@ def resolve_config_path(cli_value: str | None) -> tuple[Path, bool]:
     if env_value:
         return Path(env_value).expanduser(), True
     return default_config_path(), False
+
+
+def _packaged_config_text() -> str:
+    config = resources.files("qm_template") / "config.default.toml"
+    return config.read_text(encoding="utf-8")
+
+
+def write_default_config(path: Path) -> bool:
+    """Write the packaged default configuration unless a file already exists."""
+    if path.exists():
+        return False
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(_packaged_config_text(), encoding="utf-8")
+    except OSError as exc:
+        log.debug("Could not write default configuration to %s: %s", path, exc)
+        return False
+    log.info("Wrote default configuration to %s", path)
+    return True
 
 
 @dataclass(frozen=True)

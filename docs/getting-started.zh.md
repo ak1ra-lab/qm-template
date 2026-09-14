@@ -24,9 +24,10 @@ uv tool install .
 
 ## 配置
 
-配置文件是可选的，默认从 `/etc/qm-template/config.toml` 加载。可通过
-`--config PATH` 或 `QM_TEMPLATE_CONFIG` 指定其他位置。下载的镜像默认存储在
-`/var/lib/qm-template`，可由 `paths.images_dir` 覆盖，并按上游目录结构存放：
+配置文件是可选的，默认从 `/etc/qm-template/config.toml` 加载，首次运行时会自动
+写入内置默认配置。可通过 `--config PATH` 或 `QM_TEMPLATE_CONFIG` 指定其他位置。
+下载的镜像默认存储在 `/var/lib/qm-template`，可由 `paths.images_dir` 覆盖，并按
+上游目录结构存放：
 
 ```text
 <images_dir>/<distro>/<release>/[<tag>/]<filename>
@@ -35,7 +36,7 @@ uv tool install .
 `download.preferred` 指定下载器优先级，`download.connections` 设置 `axel` 和
 `aria2c` 的并行连接数。`create.sshkeys` 以内联列表提供 Cloud-Init 注入的 SSH
 公钥，`create.sshkeys_files` 指向公钥文件列表，两者的内容会按 SSH 指纹合并去重，
-且至少需要配置一个公钥。从示例配置开始：
+且至少需要配置一个公钥。也可以手动创建示例配置：
 
 ```shell
 install -d /etc/qm-template

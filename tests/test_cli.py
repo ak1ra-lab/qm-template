@@ -23,6 +23,19 @@ def test_distros_command_lists_supported_distros(
     assert "ubuntu" in output
 
 
+def test_first_run_writes_default_config(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "etc" / "config.toml"
+    monkeypatch.setattr("qm_template.config.default_config_path", lambda: target)
+    monkeypatch.delenv("QM_TEMPLATE_CONFIG", raising=False)
+    assert main(["distros"]) == 0
+    assert target.is_file()
+    assert "debian" in capsys.readouterr().out
+
+
 def test_unknown_distro_returns_error(tmp_path: Path) -> None:
     config = tmp_path / "config.toml"
     config.write_text("")
