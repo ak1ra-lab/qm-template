@@ -12,7 +12,6 @@ from pathlib import Path
 from qm_template import PROGRAM
 from qm_template.config import CreateSettings
 from qm_template.errors import QmTemplateError, UserCancelled
-from qm_template.http import http_get_text
 from qm_template.log import log
 
 PVE_VM_DIR = Path("/etc/pve/qemu-server")
@@ -107,8 +106,23 @@ def check_storage(storage: str) -> None:
         )
 
 
+def _write_keys_file(content: str) -> Path:
+    with tempfile.NamedTemporaryFile(
+        "w", prefix=f"{PROGRAM}-sshkeys-", delete=False
+    ) as handle:
+        handle.write(content)
+        return Path(handle.name)
+
+
 @contextlib.contextmanager
 def sshkeys_file(settings: CreateSettings) -> Generator[Path, None, None]:
+    if settings.sshkeys:
+        temporary = _write_keys_file("\n".join(settings.sshkeys) + "\n")
+        try:
+            yield temporary
+        finally:
+            temporary.unlink(missing_ok=True)
+        return
     configured = settings.sshkeys_file
     if configured:
         path = Path(os.path.expandvars(configured)).expanduser()
@@ -116,19 +130,9 @@ def sshkeys_file(settings: CreateSettings) -> Generator[Path, None, None]:
             yield path
             return
         log.warning("SSH keys file is not readable: %s", path)
-    if not settings.sshkeys_url:
-        raise QmTemplateError("no usable SSH keys source configured")
-    log.info("Fetching SSH keys from: %s", settings.sshkeys_url)
-    content = http_get_text(settings.sshkeys_url)
-    with tempfile.NamedTemporaryFile(
-        "w", prefix=f"{PROGRAM}-sshkeys-", delete=False
-    ) as handle:
-        handle.write(content)
-        temporary = Path(handle.name)
-    try:
-        yield temporary
-    finally:
-        temporary.unlink(missing_ok=True)
+    raise QmTemplateError(
+        "no SSH keys configured; set create.sshkeys or create.sshkeys_file"
+    )
 
 
 def build_qm_create(

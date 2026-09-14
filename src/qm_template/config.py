@@ -44,8 +44,8 @@ class CreateSettings:
     bridge: str = "vmbr0"
     ciuser: str = "debian"
     cipassword: str = "debian"
+    sshkeys: tuple[str, ...] = ()
     sshkeys_file: str | None = "~/.ssh/id_ed25519.pub"
-    sshkeys_url: str | None = None
 
 
 @dataclass(frozen=True)
@@ -141,10 +141,10 @@ def _parse_create(table: Mapping[str, Any], source: Path) -> CreateSettings:
         bridge=_str(table, "bridge", "vmbr0", source),
         ciuser=_str(table, "ciuser", "debian", source),
         cipassword=_str(table, "cipassword", "debian", source),
+        sshkeys=_string_list(table, "sshkeys", (), source),
         sshkeys_file=_optional_str(
             table, "sshkeys_file", "~/.ssh/id_ed25519.pub", source
         ),
-        sshkeys_url=_optional_str(table, "sshkeys_url", None, source),
     )
 
 

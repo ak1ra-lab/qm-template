@@ -4,7 +4,12 @@ import pytest
 
 from qm_template.config import CreateSettings
 from qm_template.errors import QmTemplateError
-from qm_template.pve import build_qm_create, default_vm_name, find_images
+from qm_template.pve import (
+    build_qm_create,
+    default_vm_name,
+    find_images,
+    sshkeys_file,
+)
 
 
 def test_default_vm_name_derives_from_image():
@@ -58,6 +63,31 @@ def test_find_images_includes_nested_build_directories(tmp_path):
     assert find_images(tmp_path, "trixie")[0].relative_to(tmp_path) == Path(
         "debian/trixie/20260413-2447/debian-13-genericcloud-amd64.qcow2"
     )
+
+
+def test_sshkeys_file_prefers_inline_keys(tmp_path):
+    settings = CreateSettings(
+        sshkeys=("ssh-ed25519 AAAA", "ssh-ed25519 BBBB"),
+        sshkeys_file=str(tmp_path / "missing.pub"),
+    )
+    with sshkeys_file(settings) as path:
+        assert path.read_text() == "ssh-ed25519 AAAA\nssh-ed25519 BBBB\n"
+    assert not path.exists()
+
+
+def test_sshkeys_file_falls_back_to_file(tmp_path):
+    keys = tmp_path / "id_ed25519.pub"
+    keys.write_text("ssh-ed25519 CCCC\n")
+    settings = CreateSettings(sshkeys=(), sshkeys_file=str(keys))
+    with sshkeys_file(settings) as path:
+        assert path == keys
+
+
+def test_sshkeys_file_requires_a_source():
+    settings = CreateSettings(sshkeys=(), sshkeys_file=None)
+    with pytest.raises(QmTemplateError):
+        with sshkeys_file(settings):
+            pass
 
 
 def test_find_images_reports_missing_directory(tmp_path):

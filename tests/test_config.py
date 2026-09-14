@@ -15,6 +15,7 @@ def test_builtin_defaults(tmp_path):
     assert settings.create.storage == "local-lvm"
     assert settings.create.cores == 1
     assert settings.create.memory == 1024
+    assert settings.create.sshkeys == ()
 
 
 def test_default_config_path():
@@ -36,7 +37,12 @@ def test_parse_overrides():
                 "connections": 4,
                 "rocky": {"release": 10},
             },
-            "create": {"storage": "local-zfs", "cores": 4, "memory": 4096},
+            "create": {
+                "storage": "local-zfs",
+                "cores": 4,
+                "memory": 4096,
+                "sshkeys": ["ssh-ed25519 AAAA"],
+            },
         },
         source=Path("config.toml"),
     )
@@ -47,6 +53,7 @@ def test_parse_overrides():
     assert settings.download.defaults["rocky"]["release"] == "10"
     assert settings.create.storage == "local-zfs"
     assert settings.create.cores == 4
+    assert settings.create.sshkeys == ("ssh-ed25519 AAAA",)
 
 
 def test_unknown_distro_section_raises():
@@ -71,6 +78,10 @@ def test_invalid_types_raise():
     with pytest.raises(QmTemplateError):
         parse_settings(
             {"download": {"connections": "many"}}, source=Path("config.toml")
+        )
+    with pytest.raises(QmTemplateError):
+        parse_settings(
+            {"create": {"sshkeys": "ssh-ed25519 AAAA"}}, source=Path("config.toml")
         )
 
 
