@@ -192,7 +192,17 @@ def run_create(args: argparse.Namespace, settings: Settings) -> None:
         if args.dry_run:
             print(pretty(command))
             return
-        run_qm(command)
+        try:
+            run_qm(command)
+        except QmTemplateError:
+            if vm_config_path(vm_id).exists():
+                log.warning(
+                    "VM %d exists but may be incomplete; clean it up with: "
+                    "qm destroy %d",
+                    vm_id,
+                    vm_id,
+                )
+            raise
     log.info("Template %s (ID %d) created", vm_name, vm_id)
 
 
