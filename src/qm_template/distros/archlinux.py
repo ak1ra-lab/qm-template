@@ -14,8 +14,9 @@ class ArchLinux(Distro):
         release = params["release"]
         variant = params["variant"]
         arch = params["arch"]
-        tag = self.newest_in(f"{self.base_url}/", r"v\d{8}\.\d+")
-        base = f"{self.base_url}/{tag}/"
+        if release == "latest":
+            release = self.newest_in(f"{self.base_url}/", r"v\d{8}\.\d+")
+        base = f"{self.base_url}/{release}/"
         filename = f"Arch-Linux-{arch}-{variant}.qcow2"
         return RemoteImage(
             distro=self.name,
@@ -24,5 +25,4 @@ class ArchLinux(Distro):
             url=f"{base}{filename}",
             checksum_url=f"{base}{filename}.SHA256",
             algorithm="sha256",
-            tag=tag,
         )

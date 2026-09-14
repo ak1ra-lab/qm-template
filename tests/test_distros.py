@@ -119,19 +119,32 @@ def test_ubuntu_minimal_keeps_floating_filename(monkeypatch):
     )
 
 
-def test_archlinux_pins_newest_build_directory(monkeypatch):
+def test_archlinux_pins_newest_build(monkeypatch):
     listing = ["latest", "v20260615.545059", "v20260901.583572"]
     monkeypatch.setattr("qm_template.distros.base.list_directory", lambda url: listing)
     distro = ArchLinux()
     image = distro.resolve(distro.merge({}, {}))
-    assert image.tag == "v20260901.583572"
+    assert image.tag is None
+    assert image.release == "v20260901.583572"
     assert image.url == (
         "https://geo.mirror.pkgbuild.com/images/v20260901.583572/"
         "Arch-Linux-x86_64-cloudimg.qcow2"
     )
     assert image.checksum_url == image.url + ".SHA256"
     assert image.local_path == Path(
-        "archlinux/latest/v20260901.583572/Arch-Linux-x86_64-cloudimg.qcow2"
+        "archlinux/v20260901.583572/Arch-Linux-x86_64-cloudimg.qcow2"
+    )
+
+
+def test_archlinux_accepts_explicit_build(monkeypatch):
+    def unexpected_listing(url: str) -> list[str]:
+        raise AssertionError(f"unexpected listing of {url}")
+
+    monkeypatch.setattr("qm_template.distros.base.list_directory", unexpected_listing)
+    distro = ArchLinux()
+    image = distro.resolve(distro.merge({}, {"release": "v20260901.583572"}))
+    assert image.local_path == Path(
+        "archlinux/v20260901.583572/Arch-Linux-x86_64-cloudimg.qcow2"
     )
 
 
