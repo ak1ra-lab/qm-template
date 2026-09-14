@@ -48,7 +48,7 @@ class CreateSettings:
     ciuser: str = "debian"
     cipassword: str = "debian"
     sshkeys: tuple[str, ...] = ()
-    sshkeys_file: tuple[str, ...] = ("~/.ssh/id_ed25519.pub",)
+    sshkeys_files: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -166,9 +166,7 @@ def _parse_create(table: Mapping[str, Any], source: Path) -> CreateSettings:
         ciuser=_str(table, "ciuser", "debian", source),
         cipassword=_str(table, "cipassword", "debian", source),
         sshkeys=_ssh_keys(table, "sshkeys", source),
-        sshkeys_file=_string_list(
-            table, "sshkeys_file", ("~/.ssh/id_ed25519.pub",), source
-        ),
+        sshkeys_files=_string_list(table, "sshkeys_files", (), source),
     )
 
 

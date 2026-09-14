@@ -139,7 +139,7 @@ def _collect_ssh_keys(settings: CreateSettings) -> str | None:
 
     for value in settings.sshkeys:
         add(value, strict=True)
-    for configured in settings.sshkeys_file:
+    for configured in settings.sshkeys_files:
         path = Path(os.path.expandvars(configured)).expanduser()
         if not path.is_file() or not os.access(path, os.R_OK):
             log.warning("SSH keys file is not readable: %s", path)
@@ -154,7 +154,7 @@ def sshkeys_file(settings: CreateSettings) -> Generator[Path, None, None]:
     content = _collect_ssh_keys(settings)
     if content is None:
         raise QmTemplateError(
-            "no SSH keys configured; set create.sshkeys or create.sshkeys_file"
+            "no SSH keys configured; set create.sshkeys or create.sshkeys_files"
         )
     temporary = _write_keys_file(content)
     try:

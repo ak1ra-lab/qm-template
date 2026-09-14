@@ -75,7 +75,7 @@ def test_sshkeys_merges_and_dedupes_inline_and_files(tmp_path):
     )
     settings = CreateSettings(
         sshkeys=("ssh-ed25519 AAAA", "ssh-ed25519 BBBB"),
-        sshkeys_file=(str(keys), str(tmp_path / "missing.pub")),
+        sshkeys_files=(str(keys), str(tmp_path / "missing.pub")),
     )
     with sshkeys_file(settings) as path:
         assert (
@@ -87,14 +87,14 @@ def test_sshkeys_merges_and_dedupes_inline_and_files(tmp_path):
 def test_sshkeys_without_inline_uses_file(tmp_path):
     keys = tmp_path / "id_ed25519.pub"
     keys.write_text("ssh-ed25519 CCCC\n")
-    settings = CreateSettings(sshkeys=(), sshkeys_file=(str(keys),))
+    settings = CreateSettings(sshkeys=(), sshkeys_files=(str(keys),))
     with sshkeys_file(settings) as path:
         assert path.read_text() == "ssh-ed25519 CCCC\n"
     assert not path.exists()
 
 
 def test_sshkeys_unreadable_file_is_skipped(tmp_path):
-    settings = CreateSettings(sshkeys_file=(str(tmp_path / "missing.pub"),))
+    settings = CreateSettings(sshkeys_files=(str(tmp_path / "missing.pub"),))
     with pytest.raises(QmTemplateError):
         with sshkeys_file(settings):
             pass
@@ -103,13 +103,13 @@ def test_sshkeys_unreadable_file_is_skipped(tmp_path):
 def test_sshkeys_invalid_file_line_is_skipped(tmp_path):
     keys = tmp_path / "id_ed25519.pub"
     keys.write_text("ssh-ed25519 CCCC\ngarbage line\n")
-    settings = CreateSettings(sshkeys_file=(str(keys),))
+    settings = CreateSettings(sshkeys_files=(str(keys),))
     with sshkeys_file(settings) as path:
         assert path.read_text() == "ssh-ed25519 CCCC\n"
 
 
-def test_sshkeys_file_requires_a_source():
-    settings = CreateSettings(sshkeys=(), sshkeys_file=())
+def test_sshkeys_require_a_source():
+    settings = CreateSettings(sshkeys=(), sshkeys_files=())
     with pytest.raises(QmTemplateError):
         with sshkeys_file(settings):
             pass

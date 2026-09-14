@@ -28,9 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   overridable with `--config` or `QM_TEMPLATE_CONFIG`. Downloaded images are
   stored in `/var/lib/qm-template` by default.
 - SSH public keys for Cloud-Init can be set inline with `create.sshkeys` and
-  via the `create.sshkeys_file` key-file list; the contents of both are merged
+  via the `create.sshkeys_files` key-file list; the contents of both are merged
   and deduplicated by SSH key fingerprint. Inline entries are validated as SSH
-  public keys when the configuration is parsed.
+  public keys when the configuration is parsed. At least one key is required
+  and no key file is assumed by default.
 - `--dry-run` pretty prints the command that would run: `download` shows the
   first available downloader's command and `create` shows the assembled
   `qm create` invocation, one argument group per line.

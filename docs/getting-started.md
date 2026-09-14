@@ -35,8 +35,9 @@ point elsewhere. Downloaded images are stored in `/var/lib/qm-template` unless
 
 `download.preferred` orders the downloaders and `download.connections` sets the
 number of parallel connections for `axel` and `aria2c`. `create.sshkeys` lists
-inline SSH public keys and `create.sshkeys_file` lists key files; the contents
-of both are merged and deduplicated by key fingerprint for Cloud-Init. Start
+inline SSH public keys and `create.sshkeys_files` lists key files; the contents
+of both are merged and deduplicated by key fingerprint for Cloud-Init, and at
+least one key is required. Start
 from the example configuration:
 
 ```shell

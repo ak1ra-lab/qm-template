@@ -16,7 +16,7 @@ def test_builtin_defaults(tmp_path):
     assert settings.create.cores == 1
     assert settings.create.memory == 1024
     assert settings.create.sshkeys == ()
-    assert settings.create.sshkeys_file == ("~/.ssh/id_ed25519.pub",)
+    assert settings.create.sshkeys_files == ()
 
 
 def test_default_config_path():
@@ -43,7 +43,7 @@ def test_parse_overrides():
                 "cores": 4,
                 "memory": 4096,
                 "sshkeys": ["ssh-ed25519 AAAA"],
-                "sshkeys_file": ["~/.ssh/id_ed25519.pub", "/etc/keys.pub"],
+                "sshkeys_files": ["~/.ssh/id_ed25519.pub", "/etc/keys.pub"],
             },
         },
         source=Path("config.toml"),
@@ -56,7 +56,7 @@ def test_parse_overrides():
     assert settings.create.storage == "local-zfs"
     assert settings.create.cores == 4
     assert settings.create.sshkeys == ("ssh-ed25519 AAAA",)
-    assert settings.create.sshkeys_file == (
+    assert settings.create.sshkeys_files == (
         "~/.ssh/id_ed25519.pub",
         "/etc/keys.pub",
     )
@@ -91,7 +91,7 @@ def test_invalid_types_raise():
         )
     with pytest.raises(QmTemplateError):
         parse_settings(
-            {"create": {"sshkeys_file": "~/.ssh/id_ed25519.pub"}},
+            {"create": {"sshkeys_files": "~/.ssh/id_ed25519.pub"}},
             source=Path("config.toml"),
         )
 
