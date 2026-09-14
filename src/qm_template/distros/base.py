@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from typing import ClassVar
 
 from qm_template.errors import QmTemplateError
@@ -15,6 +16,19 @@ class RemoteImage:
     url: str
     checksum_url: str
     algorithm: str
+    tag: str | None = None
+
+    @property
+    def local_path(self) -> Path:
+        """Path relative to the images directory, mirroring upstream."""
+        parts = [self.distro, self.release]
+        if self.tag:
+            parts.append(self.tag)
+        parts.append(self.filename)
+        for part in parts:
+            if part in {"", ".", ".."} or "/" in part or "\\" in part:
+                raise QmTemplateError(f"unsafe image path component: {part!r}")
+        return Path(*parts)
 
 
 class Distro(ABC):

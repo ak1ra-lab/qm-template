@@ -20,7 +20,7 @@ class OpenSUSE(Distro):
             base = self.tumbleweed_url
             pattern = (
                 rf"(?:openSUSE-)?Tumbleweed-{re.escape(variant)}"
-                rf"-VM\.{re.escape(arch)}-Cloud\.qcow2"
+                rf"-VM\.{re.escape(arch)}-\d[\d.]*-Cloud-Snapshot\d+\.qcow2"
             )
         else:
             base = f"{self.leap_url}/{release}/appliances/"

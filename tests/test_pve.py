@@ -48,6 +48,18 @@ def test_find_images_filters_and_sorts(tmp_path):
     assert [p.name for p in find_images(tmp_path, "qcow2")] == ["b.qcow2"]
 
 
+def test_find_images_includes_nested_build_directories(tmp_path):
+    nested = tmp_path / "debian" / "trixie" / "20260413-2447"
+    nested.mkdir(parents=True)
+    (nested / "debian-13-genericcloud-amd64.qcow2").write_bytes(b"")
+    assert [p.name for p in find_images(tmp_path, None)] == [
+        "debian-13-genericcloud-amd64.qcow2"
+    ]
+    assert find_images(tmp_path, "trixie")[0].relative_to(tmp_path) == Path(
+        "debian/trixie/20260413-2447/debian-13-genericcloud-amd64.qcow2"
+    )
+
+
 def test_find_images_reports_missing_directory(tmp_path):
     with pytest.raises(QmTemplateError):
         find_images(tmp_path / "missing", None)

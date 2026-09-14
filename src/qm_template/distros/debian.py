@@ -43,4 +43,5 @@ class Debian(Distro):
             url=f"{base}{tag}/{filename}",
             checksum_url=f"{base}{tag}/SHA512SUMS",
             algorithm="sha512",
+            tag=tag,
         )

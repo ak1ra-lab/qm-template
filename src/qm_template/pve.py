@@ -61,7 +61,11 @@ def find_images(directory: Path, pattern: str | None) -> list[Path]:
             regex = re.compile(pattern)
         except re.error as exc:
             raise QmTemplateError(f"invalid pattern {pattern!r}: {exc}") from exc
-        images = [path for path in images if regex.search(path.name)]
+        images = [
+            path
+            for path in images
+            if regex.search(path.relative_to(directory).as_posix())
+        ]
     if not images:
         raise QmTemplateError(f"no cloud images found in {directory}")
     return images

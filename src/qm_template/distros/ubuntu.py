@@ -16,13 +16,16 @@ class Ubuntu(Distro):
         release = params["release"]
         variant = params["variant"]
         arch = params["arch"]
+        tag = None
         if variant == "minimal":
             base = f"{self.base_url}/minimal/releases/{release}/release/"
             filename = self.newest_in(
                 base, rf"ubuntu-[\d.]+-minimal-cloudimg-{re.escape(arch)}\.img"
             )
         elif variant == "server":
-            base = f"{self.base_url}/{release}/current/"
+            builds = f"{self.base_url}/{release}/"
+            tag = self.newest_in(builds, r"\d{8}")
+            base = f"{builds}{tag}/"
             filename = f"{release}-server-cloudimg-{arch}.img"
         else:
             raise QmTemplateError(
@@ -35,4 +38,5 @@ class Ubuntu(Distro):
             url=f"{base}{filename}",
             checksum_url=f"{base}SHA256SUMS",
             algorithm="sha256",
+            tag=tag,
         )

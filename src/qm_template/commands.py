@@ -58,14 +58,14 @@ def run_download(args: argparse.Namespace, settings: Settings) -> None:
         overrides["tag"] = None
     params = distro.merge(settings.download.defaults.get(distro.name, {}), overrides)
     image = distro.resolve(params)
-    log.info("Image: %s", image.filename)
+    log.info("Image: %s", image.local_path)
     log.debug("URL: %s", image.url)
     log.debug("Checksum: %s (%s)", image.checksum_url, image.algorithm)
     if args.dry_run:
         print(image.url)
         return
-    destination = settings.images_dir / image.filename
-    settings.images_dir.mkdir(parents=True, exist_ok=True)
+    destination = settings.images_dir / image.local_path
+    destination.parent.mkdir(parents=True, exist_ok=True)
     expected = fetch_checksum(image.checksum_url, image.filename)
     if destination.is_file():
         if verify_checksum(destination, expected, image.algorithm):
