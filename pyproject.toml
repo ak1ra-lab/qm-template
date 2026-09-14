@@ -1,11 +1,9 @@
 [project]
 name = "qm-template"
 dynamic = ["version"]
-description = "Proxmox VE template helper scripts"
+description = "Download cloud images and create Proxmox VE VM templates"
 authors = [{ name = "ak1ra", email = "git@ak1ra.xyz" }]
-dependencies = [
-    "argcomplete>=3.7.2",
-]
+dependencies = []
 requires-python = ">=3.11"
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -15,7 +13,14 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
 ]
-keywords = []
+keywords = [
+    "cloud-image",
+    "cloud-init",
+    "proxmox",
+    "proxmox-ve",
+    "qcow2",
+    "vm-template",
+]
 readme = { file = "README.md", content-type = "text/markdown" }
 license = "MIT"
 
