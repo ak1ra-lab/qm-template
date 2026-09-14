@@ -27,3 +27,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Optional TOML configuration loaded from `/etc/qm-template/config.toml`,
   overridable with `--config` or `QM_TEMPLATE_CONFIG`. Downloaded images are
   stored in `/var/lib/qm-template` by default.
+- SSH public keys for Cloud-Init can be set inline with `create.sshkeys`,
+  which takes precedence over `create.sshkeys_file`.

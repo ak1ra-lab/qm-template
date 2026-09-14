@@ -33,7 +33,8 @@ uv tool install .
 ```
 
 `download.preferred` 指定下载器优先级，`download.connections` 设置 `axel` 和
-`aria2c` 的并行连接数。从示例配置开始：
+`aria2c` 的并行连接数。`create.sshkeys` 以内联列表提供 Cloud-Init 注入的 SSH
+公钥，优先级高于指向公钥文件的 `create.sshkeys_file`。从示例配置开始：
 
 ```shell
 install -d /etc/qm-template
