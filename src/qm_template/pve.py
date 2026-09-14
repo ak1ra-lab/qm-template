@@ -6,7 +6,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from collections.abc import Generator, Sequence
+from collections.abc import Collection, Generator, Sequence
 from pathlib import Path
 
 from qm_template import PROGRAM
@@ -20,6 +20,7 @@ from qm_template.log import log
 from qm_template.shell import CommandGroups, flatten
 
 PVE_VM_DIR = Path("/etc/pve/qemu-server")
+MIN_VM_ID = 100
 
 
 def prompt(message: str) -> str:
@@ -34,19 +35,39 @@ def vm_config_path(vm_id: int) -> Path:
     return PVE_VM_DIR / f"{vm_id}.conf"
 
 
-def choose_vm_id() -> int:
-    while True:
-        answer = prompt("Enter VM ID (q to quit): ")
-        if answer in {"q", "quit"}:
-            raise UserCancelled
-        if not answer.isdigit() or int(answer) <= 0:
-            log.warning("VM ID must be a positive integer")
-            continue
-        vm_id = int(answer)
-        if vm_config_path(vm_id).exists():
-            log.warning("VM ID %d is already in use", vm_id)
-            continue
-        return vm_id
+def _parse_vm_list(text: str) -> set[int]:
+    ids: set[int] = set()
+    for line in text.splitlines()[1:]:
+        fields = line.split()
+        if fields and fields[0].isdigit():
+            ids.add(int(fields[0]))
+    return ids
+
+
+def _config_vm_ids() -> set[int]:
+    return {int(path.stem) for path in PVE_VM_DIR.glob("*.conf") if path.stem.isdigit()}
+
+
+def used_vm_ids() -> set[int]:
+    """Collect VM IDs from `qm list`, falling back to the config directory."""
+    ids: set[int] = set()
+    qm = shutil.which("qm")
+    if qm is not None:
+        result = subprocess.run([qm, "list"], capture_output=True, text=True)
+        if result.returncode == 0:
+            ids.update(_parse_vm_list(result.stdout))
+        else:
+            log.debug("qm list failed with exit status %d", result.returncode)
+    return ids | _config_vm_ids()
+
+
+def next_vm_id(used: Collection[int], start: int, step: int = 1) -> int:
+    if step < 1:
+        raise QmTemplateError("step must be a positive integer")
+    candidate = start
+    while candidate in used:
+        candidate += step
+    return candidate
 
 
 def choose_image(images: Sequence[Path], directory: Path) -> Path:
@@ -148,7 +169,7 @@ def build_qm_create(
     return [
         ["qm", "create", str(vm_id)],
         ["--name", vm_name],
-        ["--cpu", "cputype=host"],
+        ["--cpu", f"cputype={settings.cpu}"],
         ["--cores", str(settings.cores)],
         ["--balloon", str(settings.memory)],
         ["--memory", str(settings.memory)],

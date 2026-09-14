@@ -19,14 +19,16 @@ from qm_template.images import (
 )
 from qm_template.log import log
 from qm_template.pve import (
+    MIN_VM_ID,
     build_qm_create,
     check_storage,
     choose_image,
-    choose_vm_id,
     default_vm_name,
+    next_vm_id,
     prompt,
     run_qm,
     sshkeys_file,
+    used_vm_ids,
     vm_config_path,
 )
 from qm_template.shell import pretty
@@ -105,13 +107,16 @@ def run_download(args: argparse.Namespace, settings: Settings) -> None:
 
 def add_create_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("pattern", nargs="?", help="regex to filter local images")
-    parser.add_argument("--vm-id", type=int, help="VM ID (prompted when omitted)")
+    parser.add_argument(
+        "--vm-id", type=int, help="VM ID (next free ID is chosen when omitted)"
+    )
     parser.add_argument(
         "--vm-name", help="VM name (derived from the image when omitted)"
     )
     parser.add_argument("--storage", help="Proxmox storage for VM disks")
     parser.add_argument("--cores", type=int, help="number of CPU cores")
     parser.add_argument("--memory", type=int, help="memory in MiB")
+    parser.add_argument("--cpu", help="CPU type passed as cputype (default: host)")
     parser.add_argument("--bridge", help="network bridge")
     parser.add_argument(
         "--dry-run",
@@ -126,12 +131,15 @@ def run_create(args: argparse.Namespace, settings: Settings) -> None:
         storage=(args.storage if args.storage is not None else settings.create.storage),
         cores=args.cores if args.cores is not None else settings.create.cores,
         memory=args.memory if args.memory is not None else settings.create.memory,
+        cpu=args.cpu if args.cpu is not None else settings.create.cpu,
         bridge=args.bridge if args.bridge is not None else settings.create.bridge,
     )
     if create.cores < 1:
         raise QmTemplateError("cores must be a positive integer")
     if create.memory < 1:
         raise QmTemplateError("memory must be a positive integer")
+    if create.start_id < MIN_VM_ID:
+        raise QmTemplateError(f"start ID must be at least {MIN_VM_ID}")
 
     images = find_images(settings.images_dir, args.pattern)
     if len(images) == 1:
@@ -142,19 +150,21 @@ def run_create(args: argparse.Namespace, settings: Settings) -> None:
 
     vm_name = args.vm_name or default_vm_name(image)
     if args.vm_id is not None:
-        if args.vm_id <= 0:
-            raise QmTemplateError("VM ID must be a positive integer")
+        if args.vm_id < MIN_VM_ID:
+            raise QmTemplateError(f"VM ID must be at least {MIN_VM_ID}")
         if vm_config_path(args.vm_id).exists():
             raise QmTemplateError(f"VM ID {args.vm_id} is already in use")
         vm_id = args.vm_id
     else:
-        vm_id = choose_vm_id()
+        vm_id = next_vm_id(used_vm_ids(), create.start_id, create.step)
+        log.info("Selected free VM ID: %d", vm_id)
     log.info("Creating VM %d (%s)", vm_id, vm_name)
     log.debug(
-        "storage=%s cores=%d memory=%d bridge=%s",
+        "storage=%s cores=%d memory=%d cpu=%s bridge=%s",
         create.storage,
         create.cores,
         create.memory,
+        create.cpu,
         create.bridge,
     )
 

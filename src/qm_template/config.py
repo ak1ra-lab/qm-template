@@ -65,7 +65,10 @@ class CreateSettings:
     storage: str = "local-lvm"
     cores: int = 1
     memory: int = 1024
+    cpu: str = "host"
     bridge: str = "vmbr0"
+    start_id: int = 9000
+    step: int = 1
     ciuser: str = "debian"
     cipassword: str = "debian"
     sshkeys: tuple[str, ...] = ()
@@ -210,7 +213,10 @@ def _parse_create(table: Mapping[str, Any], source: Path) -> CreateSettings:
         storage=_str(table, "storage", _CREATE_DEFAULTS.storage, source),
         cores=_int(table, "cores", _CREATE_DEFAULTS.cores, source),
         memory=_int(table, "memory", _CREATE_DEFAULTS.memory, source),
+        cpu=_str(table, "cpu", _CREATE_DEFAULTS.cpu, source),
         bridge=_str(table, "bridge", _CREATE_DEFAULTS.bridge, source),
+        start_id=_int(table, "start_id", _CREATE_DEFAULTS.start_id, source),
+        step=_int(table, "step", _CREATE_DEFAULTS.step, source),
         ciuser=_str(table, "ciuser", _CREATE_DEFAULTS.ciuser, source),
         cipassword=_str(table, "cipassword", _CREATE_DEFAULTS.cipassword, source),
         sshkeys=_ssh_keys(table, "sshkeys", source),
