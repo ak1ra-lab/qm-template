@@ -8,7 +8,7 @@ from qm_template.errors import QmTemplateError
 class RockyLinux(Distro):
     name = "rocky"
     description = "Rocky Linux"
-    defaults = {"release": "9", "variant": "GenericCloud", "arch": "x86_64"}
+    defaults = {"release": "10", "variant": "GenericCloud", "arch": "x86_64"}
 
     base_url = "https://dl.rockylinux.org/pub/rocky"
     variants = {
@@ -46,7 +46,7 @@ class RockyLinux(Distro):
 class AlmaLinux(Distro):
     name = "almalinux"
     description = "AlmaLinux OS"
-    defaults = {"release": "9", "variant": "GenericCloud", "arch": "x86_64"}
+    defaults = {"release": "10", "variant": "GenericCloud", "arch": "x86_64"}
 
     base_url = "https://repo.almalinux.org/almalinux"
 
@@ -58,7 +58,7 @@ class AlmaLinux(Distro):
         filename = self.newest_in(
             base,
             rf"AlmaLinux-{re.escape(release)}-{re.escape(variant)}"
-            rf"-\d[\d.]*-\d{{8}}\.{re.escape(arch)}\.qcow2",
+            rf"-\d[\d.]*-\d{{8}}(?:\.\d+)?\.{re.escape(arch)}\.qcow2",
         )
         return RemoteImage(
             distro=self.name,
@@ -108,7 +108,7 @@ class Fedora(Distro):
 class CentOSStream(Distro):
     name = "centos"
     description = "CentOS Stream"
-    defaults = {"release": "9", "variant": "GenericCloud", "arch": "x86_64"}
+    defaults = {"release": "10", "variant": "GenericCloud", "arch": "x86_64"}
 
     base_url = "https://cloud.centos.org/centos"
 

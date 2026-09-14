@@ -150,10 +150,10 @@ qm create 9000 \
 | ----------- | --------------- | --------------- | --------------------------------- |
 | `debian`    | `trixie`        | `genericcloud`  | `--release` accepts `-backports`  |
 | `ubuntu`    | `resolute`      | `server`        | variant `minimal` also supported  |
-| `rocky`     | `9`             | `GenericCloud`  | variant `GenericCloud-LVM`        |
-| `almalinux` | `9`             | `GenericCloud`  | variant `GenericCloud-ext4`       |
+| `rocky`     | `10`            | `GenericCloud`  | variant `GenericCloud-LVM`        |
+| `almalinux` | `10`            | `GenericCloud`  | variant `GenericCloud-ext4`       |
 | `fedora`    | `44`            | `Generic`       | variant `UEFI-UKI`                |
-| `centos`    | `9`             | `GenericCloud`  | CentOS Stream                     |
+| `centos`    | `10`            | `GenericCloud`  | CentOS Stream                     |
 | `alpine`    | `3.24`          | `generic`       | BIOS firmware, Cloud-Init enabled |
 | `opensuse`  | `tumbleweed`    | `Minimal`       | `--release 15.6` for Leap         |
 | `archlinux` | `latest`        | `cloudimg`      | variant `basic` also supported    |

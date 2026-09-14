@@ -7,6 +7,7 @@ from qm_template.distros.archlinux import ArchLinux
 from qm_template.distros.base import RemoteImage
 from qm_template.distros.debian import Debian
 from qm_template.distros.opensuse import OpenSUSE
+from qm_template.distros.redhat import AlmaLinux
 from qm_template.distros.ubuntu import Ubuntu
 from qm_template.errors import QmTemplateError
 
@@ -77,12 +78,32 @@ def test_debian_pins_newest_build(monkeypatch):
 
 
 def test_merge_applies_overrides():
-    params = DISTROS["rocky"].merge({"release": "10"}, {"variant": "GenericCloud-LVM"})
+    params = DISTROS["rocky"].merge({"release": "9"}, {"variant": "GenericCloud-LVM"})
     assert params == {
-        "release": "10",
+        "release": "9",
         "variant": "GenericCloud-LVM",
         "arch": "x86_64",
     }
+
+
+def test_redhat_family_defaults_to_release_10():
+    for name in ("rocky", "almalinux", "centos"):
+        assert DISTROS[name].merge({}, {})["release"] == "10"
+
+
+def test_almalinux_pins_newest_dated_build(monkeypatch):
+    listing = [
+        "AlmaLinux-10-GenericCloud-10.2-20260526.0.x86_64.qcow2",
+        "AlmaLinux-10-GenericCloud-10.2-20260817.0.x86_64.qcow2",
+        "AlmaLinux-10-GenericCloud-latest.x86_64.qcow2",
+    ]
+    monkeypatch.setattr("qm_template.distros.base.list_directory", lambda url: listing)
+    distro = AlmaLinux()
+    image = distro.resolve(distro.merge({}, {}))
+    assert image.filename == "AlmaLinux-10-GenericCloud-10.2-20260817.0.x86_64.qcow2"
+    assert image.local_path == Path(
+        "almalinux/10/AlmaLinux-10-GenericCloud-10.2-20260817.0.x86_64.qcow2"
+    )
 
 
 def test_merge_rejects_unknown_parameter():
