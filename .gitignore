@@ -347,6 +347,7 @@ credentials.yaml
 examples/*
 
 ## LLM
+.agents/plans/*
 .agents/sessions/*
 
 # Local qm-template configuration (keep the example file)
