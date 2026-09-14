@@ -1,26 +1,90 @@
 # Getting Started
 
-## Install dependencies
+## Requirements
 
-```bash
+- Python >= 3.11
+- [uv](https://docs.astral.sh/uv/)
+- A Proxmox VE host, normally running as root
+- Proxmox VE (`qm`, `pvesm`) for the `create` command
+- One of `aria2c`, `wget` or `curl` for the `download` command
+
+## Installation
+
+Install the CLI as a uv tool:
+
+```shell
+uv tool install qm-template
+```
+
+From a checkout:
+
+```shell
+uv tool install .
+```
+
+## Configuration
+
+The configuration file is optional and loaded from
+`/etc/qm-template/config.toml`. Use `--config PATH` or `QM_TEMPLATE_CONFIG` to
+point elsewhere. Downloaded images are stored in `/var/lib/qm-template` unless
+`paths.images_dir` overrides it.
+
+Start from the example configuration:
+
+```shell
+install -d /etc/qm-template
+cp qm-template.example.toml /etc/qm-template/config.toml
+```
+
+Command-line options override the configured defaults.
+
+## Download an image
+
+```shell
+# default distro from the configuration file
+qm-template download
+
+# pick a distro, optionally override parameters
+qm-template download ubuntu --release noble --variant minimal
+qm-template download debian --release bookworm --tag 20260907-2594
+
+# only print the resolved URL
+qm-template download --dry-run alpine
+```
+
+Interrupted downloads are resumed on the next run; partial files are stored as
+`<image>.part`. The fetched checksum is saved next to the image as
+`<image>.sha256` or `<image>.sha512`, depending on the upstream algorithm.
+
+## Create a VM template
+
+```shell
+# interactive image and VM ID selection
+qm-template create
+
+# filter images with a regular expression
+qm-template create debian-13
+
+# non-interactive
+qm-template create --vm-id 9000 --vm-name debian-13-template
+
+# inspect the assembled command without running it
+qm-template create --dry-run --vm-id 9000
+```
+
+`create` requires a Proxmox VE host and runs a single
+`qm create ... --template 1` command.
+
+## List distros
+
+```shell
+qm-template distros
+```
+
+## Development
+
+```shell
 uv sync --group dev
-```
-
-
-## Run the CLI
-
-```bash
-uv run qm-template --version
-```
-
-## Shell completion
-
-```bash
-eval "$(register-python-argcomplete qm-template)"
-```
-## Common tasks
-
-```bash
 just lint
 just typecheck
 just test

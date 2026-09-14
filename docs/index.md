@@ -1,17 +1,27 @@
 # qm-template
 
-Proxmox VE template helper scripts
+A Python CLI that downloads cloud images and creates Proxmox VE VM templates
+with Cloud-Init support.
 
-## Highlights
+## Features
 
-- Built with `uv`, `ruff`, `ty`, `pytest`, and `mkdocs-material`.
-- CLI uses `argparse` and `argcomplete` for shell completion.
-- Packaged from `src/qm_template`.
-- Published documentation lives at <https://ak1ra-lab.github.io/qm-template/>.
+- **Multi-distro downloads**: Debian, Ubuntu, Rocky Linux, AlmaLinux, Fedora,
+  CentOS Stream, Alpine, openSUSE and Arch Linux.
+- **Checksum verification** against each distro's official checksum files,
+  saved next to the image (`<image>.sha256`/`.sha512`).
+- **Resumable downloads** via `aria2c`, `wget` or `curl`, whichever is
+  available.
+- **A single `qm create ... --template 1` command** instead of a chain of
+  `qm set` calls.
+- **TOML configuration** read with `tomllib` from the standard library.
 
 ## Quick start
 
-```bash
-uv sync --group dev
-uv run qm-template --version
+```shell
+uv tool install qm-template
+qm-template download debian
+qm-template distros
 ```
+
+See [Getting Started](getting-started.md) for configuration, usage and
+development instructions.
