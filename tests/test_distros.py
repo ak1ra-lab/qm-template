@@ -7,7 +7,12 @@ from qm_template.distros.archlinux import ArchLinux
 from qm_template.distros.base import RemoteImage
 from qm_template.distros.debian import Debian
 from qm_template.distros.opensuse import OpenSUSE
-from qm_template.distros.redhat import AlmaLinux
+from qm_template.distros.redhat import (
+    AlmaLinux,
+    CentOSStream,
+    Fedora,
+    RockyLinux,
+)
 from qm_template.distros.ubuntu import Ubuntu
 from qm_template.errors import QmTemplateError
 
@@ -188,3 +193,73 @@ def test_ubuntu_rejects_unknown_variant():
     distro = Ubuntu()
     with pytest.raises(QmTemplateError):
         distro.resolve(distro.merge({}, {"variant": "desktop"}))
+
+
+def test_rocky_pins_newest_dated_build(monkeypatch):
+    listing = [
+        "Rocky-10-GenericCloud-Base-10.0-20250601.0.x86_64.qcow2",
+        "Rocky-10-GenericCloud-Base-10.1-20260201.0.x86_64.qcow2",
+        "Rocky-10-GenericCloud-Base-latest.x86_64.qcow2",
+    ]
+    monkeypatch.setattr("qm_template.distros.base.list_directory", lambda url: listing)
+    distro = RockyLinux()
+    image = distro.resolve(distro.merge({}, {}))
+    assert image.filename == "Rocky-10-GenericCloud-Base-10.1-20260201.0.x86_64.qcow2"
+    assert image.checksum_url.endswith(f"{image.filename}.CHECKSUM")
+    assert image.local_path == Path("rocky/10") / image.filename
+    with pytest.raises(QmTemplateError):
+        distro.resolve(distro.merge({}, {"variant": "Desktop"}))
+
+
+def test_fedora_pins_newest_dated_build(monkeypatch):
+    listing = [
+        "Fedora-Cloud-Base-Generic-44-1.9.x86_64.qcow2",
+        "Fedora-Cloud-Base-Generic-44-1.10.x86_64.qcow2",
+    ]
+    monkeypatch.setattr("qm_template.distros.base.list_directory", lambda url: listing)
+    distro = Fedora()
+    image = distro.resolve(distro.merge({}, {}))
+    assert image.filename == "Fedora-Cloud-Base-Generic-44-1.10.x86_64.qcow2"
+    assert image.checksum_url == (
+        "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Cloud/"
+        "x86_64/images/Fedora-Cloud-44-1.10-x86_64-CHECKSUM"
+    )
+    assert image.local_path == Path("fedora/44") / image.filename
+
+
+def test_fedora_accepts_explicit_tag(monkeypatch):
+    def unexpected_listing(url: str) -> list[str]:
+        raise AssertionError(f"unexpected listing of {url}")
+
+    monkeypatch.setattr("qm_template.distros.base.list_directory", unexpected_listing)
+    distro = Fedora()
+    image = distro.resolve(distro.merge({}, {"tag": "1.9"}))
+    assert image.filename == "Fedora-Cloud-Base-Generic-44-1.9.x86_64.qcow2"
+
+
+def test_centos_pins_newest_dated_build(monkeypatch):
+    listing = [
+        "CentOS-Stream-GenericCloud-x86_64-10-20260101.0.x86_64.qcow2",
+        "CentOS-Stream-GenericCloud-x86_64-10-20260901.0.x86_64.qcow2",
+    ]
+    monkeypatch.setattr("qm_template.distros.base.list_directory", lambda url: listing)
+    distro = CentOSStream()
+    image = distro.resolve(distro.merge({}, {}))
+    assert (
+        image.filename == "CentOS-Stream-GenericCloud-x86_64-10-20260901.0.x86_64.qcow2"
+    )
+    assert image.checksum_url.endswith(f"{image.filename}.SHA256SUM")
+    assert image.local_path == Path("centos/10") / image.filename
+
+
+def test_opensuse_leap_resolves(monkeypatch):
+    filename = "openSUSE-Leap-15.6-Minimal-VM.x86_64-Cloud.qcow2"
+    monkeypatch.setattr(
+        "qm_template.distros.base.list_directory", lambda url: [filename]
+    )
+    distro = OpenSUSE()
+    image = distro.resolve(distro.merge({}, {"release": "15.6"}))
+    assert image.filename == filename
+    assert image.url.endswith(f"/15.6/appliances/{filename}")
+    assert image.checksum_url == f"{image.url}.sha256"
+    assert image.local_path == Path("opensuse/15.6") / filename
