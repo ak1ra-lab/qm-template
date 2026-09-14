@@ -55,6 +55,7 @@ def write_default_config(path: Path) -> bool:
 class DownloadSettings:
     preferred: tuple[str, ...] = ("axel", "aria2c", "wget", "curl")
     connections: int = 8
+    quiet: bool = False
     default_distro: str = "debian"
     defaults: Mapping[str, Mapping[str, str]] = field(default_factory=dict)
 
@@ -115,6 +116,13 @@ def _int(table: Mapping[str, Any], key: str, default: int, source: Path) -> int:
     value = table.get(key, default)
     if not isinstance(value, int) or isinstance(value, bool):
         raise QmTemplateError(f"{key!r} must be an integer in {source}")
+    return value
+
+
+def _bool(table: Mapping[str, Any], key: str, default: bool, source: Path) -> bool:
+    value = table.get(key, default)
+    if not isinstance(value, bool):
+        raise QmTemplateError(f"{key!r} must be a boolean in {source}")
     return value
 
 
@@ -188,6 +196,7 @@ def _parse_download(table: Mapping[str, Any], source: Path) -> DownloadSettings:
             table, "preferred", _DOWNLOAD_DEFAULTS.preferred, source
         ),
         connections=connections,
+        quiet=_bool(table, "quiet", _DOWNLOAD_DEFAULTS.quiet, source),
         default_distro=_str(
             table, "default_distro", _DOWNLOAD_DEFAULTS.default_distro, source
         ),

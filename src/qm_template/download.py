@@ -17,8 +17,9 @@ class Downloader(ABC):
 
     name: ClassVar[str]
 
-    def __init__(self, connections: int = 1) -> None:
+    def __init__(self, connections: int = 1, *, quiet: bool = False) -> None:
         self.connections = connections
+        self.quiet = quiet
 
     @classmethod
     def available(cls) -> bool:
@@ -32,62 +33,70 @@ class Aria2c(Downloader):
     name = "aria2c"
 
     def build_command(self, url: str, destination: Path) -> CommandGroups:
-        return [
+        command: CommandGroups = [
             [self.name],
             ["--continue=true"],
             ["--auto-file-renaming=false"],
             ["--allow-overwrite=true"],
             ["--file-allocation=none"],
-            ["--console-log-level=warn"],
-            ["--summary-interval=0"],
-            [f"--max-connection-per-server={self.connections}"],
-            [f"--split={self.connections}"],
-            [f"--dir={destination.parent}"],
-            [f"--out={destination.name}"],
-            [url],
         ]
+        if self.quiet:
+            command.append(["--quiet=true"])
+        command.extend(
+            [
+                [f"--max-connection-per-server={self.connections}"],
+                [f"--split={self.connections}"],
+                [f"--dir={destination.parent}"],
+                [f"--out={destination.name}"],
+                [url],
+            ]
+        )
+        return command
 
 
 class Axel(Downloader):
     name = "axel"
 
     def build_command(self, url: str, destination: Path) -> CommandGroups:
-        return [
+        command: CommandGroups = [
             [self.name],
             [f"--num-connections={self.connections}"],
-            [f"--output={destination}"],
-            [url],
         ]
+        if self.quiet:
+            command.append(["--quiet"])
+        command.extend([[f"--output={destination}"], [url]])
+        return command
 
 
 class Wget(Downloader):
     name = "wget"
 
     def build_command(self, url: str, destination: Path) -> CommandGroups:
-        return [
-            [self.name],
-            ["--continue"],
-            ["--quiet"],
-            ["--show-progress"],
-            [f"--output-document={destination}"],
-            [url],
-        ]
+        command: CommandGroups = [[self.name], ["--continue"], ["--quiet"]]
+        if not self.quiet:
+            command.append(["--show-progress"])
+        command.extend([[f"--output-document={destination}"], [url]])
+        return command
 
 
 class Curl(Downloader):
     name = "curl"
 
     def build_command(self, url: str, destination: Path) -> CommandGroups:
-        return [
+        command: CommandGroups = [
             [self.name],
             ["--location"],
             ["--fail"],
             ["--continue-at", "-"],
             ["--retry", "5"],
             ["--retry-delay", "2"],
-            ["--output", str(destination)],
-            [url],
         ]
+        if self.quiet:
+            command.extend([["--silent"], ["--show-error"]])
+        else:
+            command.append(["--progress-bar"])
+        command.extend([["--output", str(destination)], [url]])
+        return command
 
 
 DOWNLOADERS: dict[str, type[Downloader]] = {
@@ -96,7 +105,7 @@ DOWNLOADERS: dict[str, type[Downloader]] = {
 
 
 def select_downloaders(
-    preferred: Sequence[str], connections: int = 1
+    preferred: Sequence[str], connections: int = 1, *, quiet: bool = False
 ) -> list[Downloader]:
     selected = []
     for name in preferred:
@@ -105,7 +114,7 @@ def select_downloaders(
             log.warning("Unknown downloader %r in configuration", name)
             continue
         if downloader_class.available():
-            selected.append(downloader_class(connections))
+            selected.append(downloader_class(connections, quiet=quiet))
         else:
             log.debug("%s is not installed", name)
     if not selected:

@@ -16,6 +16,9 @@ preferred = ["axel", "aria2c", "wget", "curl"]
 # Parallel connections per file for axel and aria2c; ignored by wget and curl.
 connections = 8
 
+# Hide downloader progress output. Overridable per run with --quiet/--no-quiet.
+quiet = false
+
 # Distro used when `qm-template download` is called without a name.
 default_distro = "debian"
 

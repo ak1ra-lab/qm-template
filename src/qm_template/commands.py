@@ -34,6 +34,12 @@ def add_download_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--arch", help="image architecture")
     parser.add_argument("--tag", help="specific image tag/version")
     parser.add_argument(
+        "--quiet",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="hide downloader progress output",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="print the download command and exit",
@@ -62,11 +68,12 @@ def run_download(args: argparse.Namespace, settings: Settings) -> None:
     log.debug("URL: %s", image.url)
     log.debug("Checksum: %s (%s)", image.checksum_url, image.algorithm)
     destination = settings.images_dir / image.local_path
+    quiet = settings.download.quiet if args.quiet is None else args.quiet
+    downloaders = select_downloaders(
+        settings.download.preferred, settings.download.connections, quiet=quiet
+    )
     if args.dry_run:
-        downloader = select_downloaders(
-            settings.download.preferred, settings.download.connections
-        )[0]
-        print(pretty(downloader.build_command(image.url, part_path(destination))))
+        print(pretty(downloaders[0].build_command(image.url, part_path(destination))))
         return
     destination.parent.mkdir(parents=True, exist_ok=True)
     expected = fetch_checksum(image.checksum_url, image.filename)
@@ -77,11 +84,7 @@ def run_download(args: argparse.Namespace, settings: Settings) -> None:
             return
         log.warning("Checksum mismatch for %s, removing it", destination)
         destination.unlink()
-    part = download_image(
-        image,
-        destination,
-        select_downloaders(settings.download.preferred, settings.download.connections),
-    )
+    part = download_image(image, destination, downloaders)
     log.info("Verifying checksum")
     if not verify_checksum(part, expected, image.algorithm):
         part.unlink(missing_ok=True)
