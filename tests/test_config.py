@@ -89,6 +89,17 @@ def test_unknown_distro_section_raises():
         )
 
 
+def test_unknown_keys_raise():
+    for data in (
+        {"creat": {}},
+        {"paths": {"image_dir": "/tmp"}},
+        {"download": {"prefered": ["wget"]}},
+        {"create": {"sshkeys_file": ["~/.ssh/id_ed25519.pub"]}},
+    ):
+        with pytest.raises(QmTemplateError):
+            parse_settings(data, source=Path("config.toml"))
+
+
 def test_unknown_distro_parameter_raises():
     with pytest.raises(QmTemplateError):
         parse_settings(

@@ -39,3 +39,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `/etc/qm-template/config.toml` on first run when the file does not exist;
   paths given with `--config` or `QM_TEMPLATE_CONFIG` are never created
   implicitly.
+
+### Changed
+
+- Unknown keys at the top level and in `[paths]`, `[download]` and `[create]`
+  now raise an error instead of being silently ignored; an old
+  `sshkeys_file` entry fails fast while the configuration is parsed.

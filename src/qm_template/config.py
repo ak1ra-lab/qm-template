@@ -78,11 +78,30 @@ class Settings:
     create: CreateSettings = field(default_factory=CreateSettings)
 
 
+_DOWNLOAD_DEFAULTS = DownloadSettings()
+_CREATE_DEFAULTS = CreateSettings()
+_DOWNLOAD_KEYS = frozenset(DownloadSettings.__dataclass_fields__) - {"defaults"}
+_CREATE_KEYS = frozenset(CreateSettings.__dataclass_fields__)
+
+
 def _table(data: Mapping[str, Any], key: str, source: Path) -> Mapping[str, Any]:
     value = data.get(key, {})
     if not isinstance(value, dict):
         raise QmTemplateError(f"[{key}] must be a table in {source}")
     return value
+
+
+def _reject_unknown(
+    table: Mapping[str, Any],
+    allowed: set[str] | frozenset[str],
+    section: str | None,
+    source: Path,
+) -> None:
+    unknown = sorted(set(table) - allowed)
+    if unknown:
+        names = ", ".join(repr(key) for key in unknown)
+        where = f"in [{section}]" if section else "at the top level"
+        raise QmTemplateError(f"unknown keys {names} {where} of {source}")
 
 
 def _str(table: Mapping[str, Any], key: str, default: str, source: Path) -> str:
@@ -127,7 +146,7 @@ def ssh_key_fingerprint(line: str) -> str | None:
 
 def _ssh_keys(table: Mapping[str, Any], key: str, source: Path) -> tuple[str, ...]:
     keys: list[str] = []
-    for value in _string_list(table, key, (), source):
+    for value in _string_list(table, key, _CREATE_DEFAULTS.sshkeys, source):
         stripped = value.strip()
         if not stripped.startswith(SSH_KEY_TYPE_PREFIXES) or not ssh_key_fingerprint(
             stripped
@@ -141,14 +160,11 @@ def _ssh_keys(table: Mapping[str, Any], key: str, source: Path) -> tuple[str, ..
 
 
 def _parse_download(table: Mapping[str, Any], source: Path) -> DownloadSettings:
+    _reject_unknown(table, _DOWNLOAD_KEYS | set(DISTROS), "download", source)
     defaults: dict[str, dict[str, str]] = {}
     for key, value in table.items():
-        if key in {"preferred", "connections", "default_distro"}:
+        if key in _DOWNLOAD_KEYS:
             continue
-        if key not in DISTROS:
-            raise QmTemplateError(
-                f"unknown distro section [download.{key}] in {source}"
-            )
         if not isinstance(value, dict):
             raise QmTemplateError(f"[download.{key}] must be a table in {source}")
         allowed = set(DISTROS[key].defaults) | {"tag"}
@@ -164,34 +180,41 @@ def _parse_download(table: Mapping[str, Any], source: Path) -> DownloadSettings:
                 )
             params[param] = str(raw)
         defaults[key] = params
-    connections = _int(table, "connections", 8, source)
+    connections = _int(table, "connections", _DOWNLOAD_DEFAULTS.connections, source)
     if connections < 1:
         raise QmTemplateError(f"'connections' must be a positive integer in {source}")
     return DownloadSettings(
         preferred=_string_list(
-            table, "preferred", ("axel", "aria2c", "wget", "curl"), source
+            table, "preferred", _DOWNLOAD_DEFAULTS.preferred, source
         ),
         connections=connections,
-        default_distro=_str(table, "default_distro", "debian", source),
+        default_distro=_str(
+            table, "default_distro", _DOWNLOAD_DEFAULTS.default_distro, source
+        ),
         defaults=defaults,
     )
 
 
 def _parse_create(table: Mapping[str, Any], source: Path) -> CreateSettings:
+    _reject_unknown(table, _CREATE_KEYS, "create", source)
     return CreateSettings(
-        storage=_str(table, "storage", "local-lvm", source),
-        cores=_int(table, "cores", 1, source),
-        memory=_int(table, "memory", 1024, source),
-        bridge=_str(table, "bridge", "vmbr0", source),
-        ciuser=_str(table, "ciuser", "debian", source),
-        cipassword=_str(table, "cipassword", "debian", source),
+        storage=_str(table, "storage", _CREATE_DEFAULTS.storage, source),
+        cores=_int(table, "cores", _CREATE_DEFAULTS.cores, source),
+        memory=_int(table, "memory", _CREATE_DEFAULTS.memory, source),
+        bridge=_str(table, "bridge", _CREATE_DEFAULTS.bridge, source),
+        ciuser=_str(table, "ciuser", _CREATE_DEFAULTS.ciuser, source),
+        cipassword=_str(table, "cipassword", _CREATE_DEFAULTS.cipassword, source),
         sshkeys=_ssh_keys(table, "sshkeys", source),
-        sshkeys_files=_string_list(table, "sshkeys_files", (), source),
+        sshkeys_files=_string_list(
+            table, "sshkeys_files", _CREATE_DEFAULTS.sshkeys_files, source
+        ),
     )
 
 
 def parse_settings(data: Mapping[str, Any], source: Path) -> Settings:
+    _reject_unknown(data, {"paths", "download", "create"}, None, source)
     paths = _table(data, "paths", source)
+    _reject_unknown(paths, {"images_dir"}, "paths", source)
     images_dir_value = _str(paths, "images_dir", str(default_images_dir()), source)
     images_dir = Path(os.path.expandvars(images_dir_value)).expanduser()
     return Settings(
