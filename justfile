@@ -30,6 +30,10 @@ coverage:
 build:
     uv build
 
+# Install the CLI globally as a uv tool
+install:
+    uv tool install .
+
 # Serve documentation locally
 docs-serve:
     NO_MKDOCS_2_WARNING=1 uv run mkdocs serve
