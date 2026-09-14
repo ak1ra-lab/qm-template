@@ -4,7 +4,7 @@
 Proxmox VE VM templates. It targets a Proxmox VE host and is normally run as
 root. Application code lives under `src/qm_template`.
 
-`download` shells out to `aria2c`/`wget`/`curl`; `create` shells out to
+`download` shells out to `axel`/`aria2c`/`wget`/`curl`; `create` shells out to
 Proxmox VE (`qm`, `pvesm`). Neither must be exercised in tests - tests mock or
 only cover pure logic.
 

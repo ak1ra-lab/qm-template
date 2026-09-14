@@ -6,7 +6,7 @@
 - [uv](https://docs.astral.sh/uv/)
 - A Proxmox VE host, normally running as root
 - Proxmox VE (`qm`, `pvesm`) for the `create` command
-- One of `aria2c`, `wget` or `curl` for the `download` command
+- One of `axel`, `aria2c`, `wget` or `curl` for the `download` command
 
 ## Installation
 
@@ -33,7 +33,9 @@ point elsewhere. Downloaded images are stored in `/var/lib/qm-template` unless
 <images_dir>/<distro>/<release>/[<tag>/]<filename>
 ```
 
-Start from the example configuration:
+`download.preferred` orders the downloaders and `download.connections` sets the
+number of parallel connections for `axel` and `aria2c`. Start from the example
+configuration:
 
 ```shell
 install -d /etc/qm-template

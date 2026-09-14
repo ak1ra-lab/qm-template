@@ -6,7 +6,7 @@
 - [uv](https://docs.astral.sh/uv/)
 - Proxmox VE 主机，通常以 root 身份运行
 - `create` 命令需要 Proxmox VE（`qm`、`pvesm`）
-- `download` 命令需要 `aria2c`、`wget` 或 `curl` 之一
+- `download` 命令需要 `axel`、`aria2c`、`wget` 或 `curl` 之一
 
 ## 安装
 
@@ -32,7 +32,8 @@ uv tool install .
 <images_dir>/<distro>/<release>/[<tag>/]<filename>
 ```
 
-从示例配置开始：
+`download.preferred` 指定下载器优先级，`download.connections` 设置 `axel` 和
+`aria2c` 的并行连接数。从示例配置开始：
 
 ```shell
 install -d /etc/qm-template

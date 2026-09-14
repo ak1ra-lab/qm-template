@@ -15,8 +15,8 @@ with Cloud-Init support.
   checksum files and saved next to the image (`<image>.sha256`/`.sha512`)
 - **Pinned builds**: dated builds are selected where the upstream offers them,
   and images mirror the upstream directory layout
-- **Resumable downloads**: uses `aria2c`, `wget` or `curl`, whichever is
-  available
+- **Resumable downloads**: uses `axel`, `aria2c`, `wget` or `curl`, whichever
+  is available, with a configurable number of parallel connections
 - **Complete `qm create` command**: the whole template is assembled into a
   single `qm create ... --template 1` invocation instead of a chain of
   `qm set` calls
@@ -30,7 +30,7 @@ with Cloud-Init support.
 - [uv](https://docs.astral.sh/uv/) to install and develop
 - A Proxmox VE host, normally running as root
 - Proxmox VE (`qm`, `pvesm`) for the `create` command
-- One of `aria2c`, `wget` or `curl` for the `download` command
+- One of `axel`, `aria2c`, `wget` or `curl` for the `download` command
 
 ## Installation
 
@@ -58,7 +58,9 @@ it, mirroring the upstream layout:
 <images_dir>/<distro>/<release>/[<tag>/]<filename>
 ```
 
-Start from the example file:
+`download.preferred` orders the downloaders and `download.connections` sets the
+number of parallel connections for `axel` and `aria2c`. Start from the example
+file:
 
 ```shell
 install -d /etc/qm-template
@@ -160,7 +162,7 @@ qm-template/
 │   ├── commands.py     # download / create / distros commands
 │   ├── config.py       # TOML settings
 │   ├── checksum.py     # checksum parsing and verification
-│   ├── download.py     # aria2c / wget / curl wrappers
+│   ├── download.py     # axel / aria2c / wget / curl wrappers
 │   ├── http.py         # HTTP helpers and directory listings
 │   ├── log.py          # logging setup
 │   ├── pve.py          # qm/pvesm integration

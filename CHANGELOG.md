@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Images mirror the upstream layout as `<distro>/<release>/[<tag>/]<filename>`
   and are pinned to the newest dated build where the upstream provides one
   (Debian, Ubuntu server, Arch Linux, openSUSE Tumbleweed).
+- `axel` is supported and preferred as a downloader, and
+  `download.connections` controls the number of parallel connections used by
+  `axel` and `aria2c`.
 - `qm-template create` assembles a single `qm create ... --template 1` command
   to build a Proxmox VE VM template.
 - `qm-template distros` lists the supported distros and their configured

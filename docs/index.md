@@ -9,7 +9,7 @@ with Cloud-Init support.
   CentOS Stream, Alpine, openSUSE and Arch Linux.
 - **Checksum verification** against each distro's official checksum files,
   saved next to the image (`<image>.sha256`/`.sha512`).
-- **Resumable downloads** via `aria2c`, `wget` or `curl`, whichever is
+- **Resumable downloads** via `axel`, `aria2c`, `wget` or `curl`, whichever is
   available.
 - **A single `qm create ... --template 1` command** instead of a chain of
   `qm set` calls.
