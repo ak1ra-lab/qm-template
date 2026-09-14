@@ -1,3 +1,6 @@
+import base64
+import binascii
+import hashlib
 import os
 import tomllib
 from collections.abc import Mapping, Sequence
@@ -45,7 +48,7 @@ class CreateSettings:
     ciuser: str = "debian"
     cipassword: str = "debian"
     sshkeys: tuple[str, ...] = ()
-    sshkeys_file: str | None = "~/.ssh/id_ed25519.pub"
+    sshkeys_file: tuple[str, ...] = ("~/.ssh/id_ed25519.pub",)
 
 
 @dataclass(frozen=True)
@@ -69,15 +72,6 @@ def _str(table: Mapping[str, Any], key: str, default: str, source: Path) -> str:
     return value
 
 
-def _optional_str(
-    table: Mapping[str, Any], key: str, default: str | None, source: Path
-) -> str | None:
-    value = table.get(key, default)
-    if value is not None and not isinstance(value, str):
-        raise QmTemplateError(f"{key!r} must be a string in {source}")
-    return value
-
-
 def _int(table: Mapping[str, Any], key: str, default: int, source: Path) -> int:
     value = table.get(key, default)
     if not isinstance(value, int) or isinstance(value, bool):
@@ -94,6 +88,36 @@ def _string_list(
     ):
         raise QmTemplateError(f"{key!r} must be a list of strings in {source}")
     return tuple(value)
+
+
+SSH_KEY_TYPE_PREFIXES = ("ssh-", "ecdsa-sha2-", "sk-")
+
+
+def ssh_key_fingerprint(line: str) -> str | None:
+    fields = line.split()
+    if len(fields) < 2:
+        return None
+    try:
+        blob = base64.b64decode(fields[1], validate=True)
+    except binascii.Error:
+        return None
+    digest = hashlib.sha256(blob).digest()
+    return base64.b64encode(digest).rstrip(b"=").decode("ascii")
+
+
+def _ssh_keys(table: Mapping[str, Any], key: str, source: Path) -> tuple[str, ...]:
+    keys: list[str] = []
+    for value in _string_list(table, key, (), source):
+        stripped = value.strip()
+        if not stripped.startswith(SSH_KEY_TYPE_PREFIXES) or not ssh_key_fingerprint(
+            stripped
+        ):
+            raise QmTemplateError(
+                f"{key!r} entry {value!r} does not look like an SSH public key "
+                f"in {source}"
+            )
+        keys.append(stripped)
+    return tuple(keys)
 
 
 def _parse_download(table: Mapping[str, Any], source: Path) -> DownloadSettings:
@@ -141,9 +165,9 @@ def _parse_create(table: Mapping[str, Any], source: Path) -> CreateSettings:
         bridge=_str(table, "bridge", "vmbr0", source),
         ciuser=_str(table, "ciuser", "debian", source),
         cipassword=_str(table, "cipassword", "debian", source),
-        sshkeys=_string_list(table, "sshkeys", (), source),
-        sshkeys_file=_optional_str(
-            table, "sshkeys_file", "~/.ssh/id_ed25519.pub", source
+        sshkeys=_ssh_keys(table, "sshkeys", source),
+        sshkeys_file=_string_list(
+            table, "sshkeys_file", ("~/.ssh/id_ed25519.pub",), source
         ),
     )
 

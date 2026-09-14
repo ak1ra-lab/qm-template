@@ -16,6 +16,7 @@ def test_builtin_defaults(tmp_path):
     assert settings.create.cores == 1
     assert settings.create.memory == 1024
     assert settings.create.sshkeys == ()
+    assert settings.create.sshkeys_file == ("~/.ssh/id_ed25519.pub",)
 
 
 def test_default_config_path():
@@ -42,6 +43,7 @@ def test_parse_overrides():
                 "cores": 4,
                 "memory": 4096,
                 "sshkeys": ["ssh-ed25519 AAAA"],
+                "sshkeys_file": ["~/.ssh/id_ed25519.pub", "/etc/keys.pub"],
             },
         },
         source=Path("config.toml"),
@@ -54,6 +56,10 @@ def test_parse_overrides():
     assert settings.create.storage == "local-zfs"
     assert settings.create.cores == 4
     assert settings.create.sshkeys == ("ssh-ed25519 AAAA",)
+    assert settings.create.sshkeys_file == (
+        "~/.ssh/id_ed25519.pub",
+        "/etc/keys.pub",
+    )
 
 
 def test_unknown_distro_section_raises():
@@ -83,6 +89,32 @@ def test_invalid_types_raise():
         parse_settings(
             {"create": {"sshkeys": "ssh-ed25519 AAAA"}}, source=Path("config.toml")
         )
+    with pytest.raises(QmTemplateError):
+        parse_settings(
+            {"create": {"sshkeys_file": "~/.ssh/id_ed25519.pub"}},
+            source=Path("config.toml"),
+        )
+
+
+def test_invalid_sshkey_entry_raises():
+    with pytest.raises(QmTemplateError):
+        parse_settings(
+            {"create": {"sshkeys": ["ssh-ed25519 AAAA", "AAAA not-a-key"]}},
+            source=Path("config.toml"),
+        )
+    with pytest.raises(QmTemplateError):
+        parse_settings(
+            {"create": {"sshkeys": ["ssh-ed25519 !!!invalid!!!"]}},
+            source=Path("config.toml"),
+        )
+
+
+def test_sshkey_entries_are_stripped():
+    settings = parse_settings(
+        {"create": {"sshkeys": ["  ssh-ed25519 AAAA  "]}},
+        source=Path("config.toml"),
+    )
+    assert settings.create.sshkeys == ("ssh-ed25519 AAAA",)
 
 
 def test_non_positive_connections_raise():

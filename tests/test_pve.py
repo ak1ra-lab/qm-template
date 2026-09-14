@@ -65,26 +65,49 @@ def test_find_images_includes_nested_build_directories(tmp_path):
     )
 
 
-def test_sshkeys_file_prefers_inline_keys(tmp_path):
+def test_sshkeys_merges_and_dedupes_inline_and_files(tmp_path):
+    keys = tmp_path / "id_ed25519.pub"
+    keys.write_text(
+        "ssh-ed25519 CCCC\n# comment\n\nssh-ed25519 AAAA alt-comment\n"
+        "ssh-rsa not@base64@\n"
+    )
     settings = CreateSettings(
         sshkeys=("ssh-ed25519 AAAA", "ssh-ed25519 BBBB"),
-        sshkeys_file=str(tmp_path / "missing.pub"),
+        sshkeys_file=(str(keys), str(tmp_path / "missing.pub")),
     )
     with sshkeys_file(settings) as path:
-        assert path.read_text() == "ssh-ed25519 AAAA\nssh-ed25519 BBBB\n"
+        assert (
+            path.read_text() == "ssh-ed25519 AAAA\nssh-ed25519 BBBB\nssh-ed25519 CCCC\n"
+        )
     assert not path.exists()
 
 
-def test_sshkeys_file_falls_back_to_file(tmp_path):
+def test_sshkeys_without_inline_uses_file(tmp_path):
     keys = tmp_path / "id_ed25519.pub"
     keys.write_text("ssh-ed25519 CCCC\n")
-    settings = CreateSettings(sshkeys=(), sshkeys_file=str(keys))
+    settings = CreateSettings(sshkeys=(), sshkeys_file=(str(keys),))
     with sshkeys_file(settings) as path:
-        assert path == keys
+        assert path.read_text() == "ssh-ed25519 CCCC\n"
+    assert not path.exists()
+
+
+def test_sshkeys_unreadable_file_is_skipped(tmp_path):
+    settings = CreateSettings(sshkeys_file=(str(tmp_path / "missing.pub"),))
+    with pytest.raises(QmTemplateError):
+        with sshkeys_file(settings):
+            pass
+
+
+def test_sshkeys_invalid_file_line_is_skipped(tmp_path):
+    keys = tmp_path / "id_ed25519.pub"
+    keys.write_text("ssh-ed25519 CCCC\ngarbage line\n")
+    settings = CreateSettings(sshkeys_file=(str(keys),))
+    with sshkeys_file(settings) as path:
+        assert path.read_text() == "ssh-ed25519 CCCC\n"
 
 
 def test_sshkeys_file_requires_a_source():
-    settings = CreateSettings(sshkeys=(), sshkeys_file=None)
+    settings = CreateSettings(sshkeys=(), sshkeys_file=())
     with pytest.raises(QmTemplateError):
         with sshkeys_file(settings):
             pass

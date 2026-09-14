@@ -10,7 +10,11 @@ from collections.abc import Generator, Sequence
 from pathlib import Path
 
 from qm_template import PROGRAM
-from qm_template.config import CreateSettings
+from qm_template.config import (
+    SSH_KEY_TYPE_PREFIXES,
+    CreateSettings,
+    ssh_key_fingerprint,
+)
 from qm_template.errors import QmTemplateError, UserCancelled
 from qm_template.log import log
 
@@ -114,25 +118,48 @@ def _write_keys_file(content: str) -> Path:
         return Path(handle.name)
 
 
+def _collect_ssh_keys(settings: CreateSettings) -> str | None:
+    keys: list[str] = []
+    seen: set[str] = set()
+
+    def add(value: str, *, strict: bool) -> None:
+        line = value.strip()
+        if not line or line.startswith("#"):
+            return
+        fingerprint = ssh_key_fingerprint(line)
+        if not line.startswith(SSH_KEY_TYPE_PREFIXES) or fingerprint is None:
+            if strict:
+                raise QmTemplateError(f"{line!r} does not look like an SSH public key")
+            log.warning("Skipping invalid SSH key line: %r", line)
+            return
+        if fingerprint not in seen:
+            seen.add(fingerprint)
+            keys.append(line)
+
+    for value in settings.sshkeys:
+        add(value, strict=True)
+    for configured in settings.sshkeys_file:
+        path = Path(os.path.expandvars(configured)).expanduser()
+        if not path.is_file() or not os.access(path, os.R_OK):
+            log.warning("SSH keys file is not readable: %s", path)
+            continue
+        for line in path.read_text().splitlines():
+            add(line, strict=False)
+    return "\n".join(keys) + "\n" if keys else None
+
+
 @contextlib.contextmanager
 def sshkeys_file(settings: CreateSettings) -> Generator[Path, None, None]:
-    if settings.sshkeys:
-        temporary = _write_keys_file("\n".join(settings.sshkeys) + "\n")
-        try:
-            yield temporary
-        finally:
-            temporary.unlink(missing_ok=True)
-        return
-    configured = settings.sshkeys_file
-    if configured:
-        path = Path(os.path.expandvars(configured)).expanduser()
-        if path.is_file() and os.access(path, os.R_OK):
-            yield path
-            return
-        log.warning("SSH keys file is not readable: %s", path)
-    raise QmTemplateError(
-        "no SSH keys configured; set create.sshkeys or create.sshkeys_file"
-    )
+    content = _collect_ssh_keys(settings)
+    if content is None:
+        raise QmTemplateError(
+            "no SSH keys configured; set create.sshkeys or create.sshkeys_file"
+        )
+    temporary = _write_keys_file(content)
+    try:
+        yield temporary
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def build_qm_create(

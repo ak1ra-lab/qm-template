@@ -75,9 +75,12 @@ bridge = "vmbr0"
 ciuser = "debian"
 cipassword = "debian"
 
-# SSH public keys injected via Cloud-Init; inline keys take precedence
-# over sshkeys_file.
+# SSH public keys injected via Cloud-Init. Inline keys in sshkeys and the
+# contents of every sshkeys_file are merged and deduplicated by SSH key
+# fingerprint. Each inline entry must look like an SSH public key.
 sshkeys = [
     # "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... user@example.com",
 ]
-sshkeys_file = "~/.ssh/id_ed25519.pub"
+sshkeys_file = [
+    "~/.ssh/id_ed25519.pub",
+]

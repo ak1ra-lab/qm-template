@@ -58,10 +58,10 @@ it, mirroring the upstream layout:
 <images_dir>/<distro>/<release>/[<tag>/]<filename>
 ```
 
-`download.preferred` orders the downloaders and `download.connections` sets the
 number of parallel connections for `axel` and `aria2c`. `create.sshkeys` lists
-SSH public keys injected through Cloud-Init and takes precedence over
-`create.sshkeys_file`, which points at a key file. Start from the example file:
+inline SSH public keys and `create.sshkeys_file` lists key files; the contents
+of both are merged and deduplicated by key fingerprint for Cloud-Init. Start
+from the example file:
 
 ```shell
 install -d /etc/qm-template
