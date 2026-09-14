@@ -17,6 +17,7 @@ from qm_template.config import (
 )
 from qm_template.errors import QmTemplateError, UserCancelled
 from qm_template.log import log
+from qm_template.shell import CommandGroups, flatten
 
 PVE_VM_DIR = Path("/etc/pve/qemu-server")
 IMAGE_SUFFIXES = {".qcow2", ".img"}
@@ -168,63 +169,41 @@ def build_qm_create(
     image: Path,
     sshkeys: Path,
     settings: CreateSettings,
-) -> list[str]:
+) -> CommandGroups:
     storage = settings.storage
     return [
-        "qm",
-        "create",
-        str(vm_id),
-        "--name",
-        vm_name,
-        "--cpu",
-        "cputype=host",
-        "--cores",
-        str(settings.cores),
-        "--balloon",
-        str(settings.memory),
-        "--memory",
-        str(settings.memory),
-        "--net0",
-        f"model=virtio,firewall=1,bridge={settings.bridge}",
-        "--scsihw",
-        "virtio-scsi-single",
-        "--agent",
-        "type=virtio,enabled=1",
-        "--machine",
-        "q35",
-        "--ostype",
-        "l26",
-        "--serial0",
-        "socket",
-        "--vga",
-        "serial0",
-        "--scsi0",
-        f"{storage}:0,import-from={image}",
-        "--scsi1",
-        f"{storage}:cloudinit",
-        "--boot",
-        "order=scsi0",
-        "--ipconfig0",
-        "ip=dhcp",
-        "--ciupgrade",
-        "0",
-        "--ciuser",
-        settings.ciuser,
-        "--cipassword",
-        settings.cipassword,
-        "--sshkeys",
-        str(sshkeys),
-        "--template",
-        "1",
+        ["qm", "create", str(vm_id)],
+        ["--name", vm_name],
+        ["--cpu", "cputype=host"],
+        ["--cores", str(settings.cores)],
+        ["--balloon", str(settings.memory)],
+        ["--memory", str(settings.memory)],
+        ["--net0", f"model=virtio,firewall=1,bridge={settings.bridge}"],
+        ["--scsihw", "virtio-scsi-single"],
+        ["--agent", "type=virtio,enabled=1"],
+        ["--machine", "q35"],
+        ["--ostype", "l26"],
+        ["--serial0", "socket"],
+        ["--vga", "serial0"],
+        ["--scsi0", f"{storage}:0,import-from={image}"],
+        ["--scsi1", f"{storage}:cloudinit"],
+        ["--boot", "order=scsi0"],
+        ["--ipconfig0", "ip=dhcp"],
+        ["--ciupgrade", "0"],
+        ["--ciuser", settings.ciuser],
+        ["--cipassword", settings.cipassword],
+        ["--sshkeys", str(sshkeys)],
+        ["--template", "1"],
     ]
 
 
-def run_qm(command: Sequence[str]) -> None:
+def run_qm(command: CommandGroups) -> None:
+    argv = flatten(command)
     if shutil.which("qm") is None:
         raise QmTemplateError("qm command not found; run this on a Proxmox VE node")
     if os.geteuid() != 0:
         log.warning("qm usually requires root privileges")
-    log.debug("Running: %s", shlex.join(command))
-    result = subprocess.run(command)
+    log.debug("Running: %s", shlex.join(argv))
+    result = subprocess.run(argv)
     if result.returncode != 0:
         raise QmTemplateError(f"qm create failed with exit status {result.returncode}")

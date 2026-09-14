@@ -53,10 +53,11 @@ qm-template download
 qm-template download ubuntu --release noble --variant minimal
 qm-template download debian --release bookworm --tag 20260907-2594
 
-# 仅打印解析后的 URL
+# 仅打印首个可用下载器的命令（不执行）
 qm-template download --dry-run alpine
 ```
 
+`--dry-run` 会解析镜像并 pretty print 首个可用下载器的命令，每个参数组一行，不执行下载。
 上游提供日期快照的发行版（Debian、Ubuntu server、Arch Linux、openSUSE
 Tumbleweed）会固定到最新构建，新构建会与旧构建并存而不是覆盖。中断的下载会在下次运行时
 续传，未完成的文件保存为 `<image>.part`。获取到的校验和会与镜像一起保存为
@@ -78,7 +79,8 @@ qm-template create --vm-id 9000 --vm-name debian-13-template
 qm-template create --dry-run --vm-id 9000
 ```
 
-`create` 需要 Proxmox VE 主机，并执行单条 `qm create ... --template 1` 命令。
+`create` 需要 Proxmox VE 主机，并执行单条 `qm create ... --template 1` 命令；
+`--dry-run` 会 pretty print 组装好的命令而不执行。
 
 ## 列出发行版
 

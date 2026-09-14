@@ -31,3 +31,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   via the `create.sshkeys_file` key-file list; the contents of both are merged
   and deduplicated by SSH key fingerprint. Inline entries are validated as SSH
   public keys when the configuration is parsed.
+- `--dry-run` pretty prints the command that would run: `download` shows the
+  first available downloader's command and `create` shows the assembled
+  `qm create` invocation, one argument group per line.

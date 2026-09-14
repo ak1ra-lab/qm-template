@@ -9,6 +9,7 @@ from typing import ClassVar
 from qm_template.distros import RemoteImage
 from qm_template.errors import QmTemplateError
 from qm_template.log import log
+from qm_template.shell import CommandGroups, flatten
 
 
 class Downloader(ABC):
@@ -24,72 +25,68 @@ class Downloader(ABC):
         return shutil.which(cls.name) is not None
 
     @abstractmethod
-    def build_command(self, url: str, destination: Path) -> list[str]: ...
+    def build_command(self, url: str, destination: Path) -> CommandGroups: ...
 
 
 class Aria2c(Downloader):
     name = "aria2c"
 
-    def build_command(self, url: str, destination: Path) -> list[str]:
+    def build_command(self, url: str, destination: Path) -> CommandGroups:
         return [
-            self.name,
-            "--continue=true",
-            "--auto-file-renaming=false",
-            "--allow-overwrite=true",
-            "--file-allocation=none",
-            "--console-log-level=warn",
-            "--summary-interval=0",
-            f"--max-connection-per-server={self.connections}",
-            f"--split={self.connections}",
-            f"--dir={destination.parent}",
-            f"--out={destination.name}",
-            url,
+            [self.name],
+            ["--continue=true"],
+            ["--auto-file-renaming=false"],
+            ["--allow-overwrite=true"],
+            ["--file-allocation=none"],
+            ["--console-log-level=warn"],
+            ["--summary-interval=0"],
+            [f"--max-connection-per-server={self.connections}"],
+            [f"--split={self.connections}"],
+            [f"--dir={destination.parent}"],
+            [f"--out={destination.name}"],
+            [url],
         ]
 
 
 class Axel(Downloader):
     name = "axel"
 
-    def build_command(self, url: str, destination: Path) -> list[str]:
+    def build_command(self, url: str, destination: Path) -> CommandGroups:
         return [
-            self.name,
-            f"--num-connections={self.connections}",
-            f"--output={destination}",
-            url,
+            [self.name],
+            [f"--num-connections={self.connections}"],
+            [f"--output={destination}"],
+            [url],
         ]
 
 
 class Wget(Downloader):
     name = "wget"
 
-    def build_command(self, url: str, destination: Path) -> list[str]:
+    def build_command(self, url: str, destination: Path) -> CommandGroups:
         return [
-            self.name,
-            "--continue",
-            "--quiet",
-            "--show-progress",
-            f"--output-document={destination}",
-            url,
+            [self.name],
+            ["--continue"],
+            ["--quiet"],
+            ["--show-progress"],
+            [f"--output-document={destination}"],
+            [url],
         ]
 
 
 class Curl(Downloader):
     name = "curl"
 
-    def build_command(self, url: str, destination: Path) -> list[str]:
+    def build_command(self, url: str, destination: Path) -> CommandGroups:
         return [
-            self.name,
-            "--location",
-            "--fail",
-            "--continue-at",
-            "-",
-            "--retry",
-            "5",
-            "--retry-delay",
-            "2",
-            "--output",
-            str(destination),
-            url,
+            [self.name],
+            ["--location"],
+            ["--fail"],
+            ["--continue-at", "-"],
+            ["--retry", "5"],
+            ["--retry-delay", "2"],
+            ["--output", str(destination)],
+            [url],
         ]
 
 
@@ -118,13 +115,17 @@ def select_downloaders(
     return selected
 
 
+def part_path(destination: Path) -> Path:
+    return destination.with_name(destination.name + ".part")
+
+
 def _run_downloaders(url: str, part: Path, downloaders: Sequence[Downloader]) -> bool:
     for downloader in downloaders:
-        command = downloader.build_command(url, part)
+        argv = flatten(downloader.build_command(url, part))
         log.info("Downloading %s with %s", part.name, downloader.name)
-        log.debug("Running: %s", shlex.join(command))
+        log.debug("Running: %s", shlex.join(argv))
         try:
-            result = subprocess.run(command)
+            result = subprocess.run(argv)
         except OSError as exc:
             log.warning("could not run %s: %s", downloader.name, exc)
             continue
@@ -139,7 +140,7 @@ def download_image(
     destination: Path,
     downloaders: Sequence[Downloader],
 ) -> Path:
-    part = destination.with_name(destination.name + ".part")
+    part = part_path(destination)
     if part.is_file():
         log.info("Found a partial download, attempting to resume")
     if _run_downloaders(image.url, part, downloaders):

@@ -1,7 +1,15 @@
 import pytest
 
-from qm_template.download import Aria2c, Axel, Curl, Wget, select_downloaders
+from qm_template.download import (
+    Aria2c,
+    Axel,
+    Curl,
+    Wget,
+    part_path,
+    select_downloaders,
+)
 from qm_template.errors import QmTemplateError
+from qm_template.shell import flatten
 
 URL = "https://example.com/image.qcow2"
 
@@ -9,27 +17,31 @@ URL = "https://example.com/image.qcow2"
 def test_downloader_commands_include_url_and_destination(tmp_path):
     destination = tmp_path / "image.qcow2.part"
     for downloader in (Aria2c(8), Axel(8), Wget(8), Curl(8)):
-        command = downloader.build_command(URL, destination)
-        joined = " ".join(command)
-        assert command[0] == downloader.name
-        assert URL in command
+        argv = flatten(downloader.build_command(URL, destination))
+        joined = " ".join(argv)
+        assert argv[0] == downloader.name
+        assert URL in argv
         assert str(destination) in joined or destination.name in joined
 
 
 def test_resumable_downloaders_include_continue(tmp_path):
     destination = tmp_path / "image.qcow2.part"
     for downloader in (Aria2c(8), Wget(8), Curl(8)):
-        command = downloader.build_command(URL, destination)
-        assert any("continue" in arg for arg in command)
+        argv = flatten(downloader.build_command(URL, destination))
+        assert any("continue" in arg for arg in argv)
 
 
 def test_connection_options_are_forwarded(tmp_path):
     destination = tmp_path / "image.qcow2.part"
-    aria2c = " ".join(Aria2c(8).build_command(URL, destination))
+    aria2c = " ".join(flatten(Aria2c(8).build_command(URL, destination)))
     assert "--max-connection-per-server=8" in aria2c
     assert "--split=8" in aria2c
-    axel = " ".join(Axel(8).build_command(URL, destination))
+    axel = " ".join(flatten(Axel(8).build_command(URL, destination)))
     assert "--num-connections=8" in axel
+
+
+def test_part_path_appends_part_suffix(tmp_path):
+    assert part_path(tmp_path / "image.qcow2") == tmp_path / "image.qcow2.part"
 
 
 def test_select_downloaders_rejects_empty_preference():

@@ -10,6 +10,7 @@ from qm_template.pve import (
     find_images,
     sshkeys_file,
 )
+from qm_template.shell import flatten
 
 
 def test_default_vm_name_derives_from_image():
@@ -36,13 +37,14 @@ def test_build_qm_create_is_single_complete_command():
     command = build_qm_create(
         9000, "debian-template", Path("/images/x.qcow2"), Path("/keys.pub"), settings
     )
-    assert command[:3] == ["qm", "create", "9000"]
-    assert command.count("qm") == 1
-    assert "local-zfs:0,import-from=/images/x.qcow2" in command
-    assert "local-zfs:cloudinit" in command
-    assert command[command.index("--template") + 1] == "1"
-    assert "--ciuser" in command
-    assert "--sshkeys" in command
+    assert ["qm", "create", "9000"] == command[0]
+    assert flatten(command).count("qm") == 1
+    assert ["--template", "1"] in command
+    argv = flatten(command)
+    assert "local-zfs:0,import-from=/images/x.qcow2" in argv
+    assert "local-zfs:cloudinit" in argv
+    assert "--ciuser" in argv
+    assert "--sshkeys" in argv
 
 
 def test_find_images_filters_and_sorts(tmp_path):

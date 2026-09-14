@@ -1,5 +1,4 @@
 import argparse
-import shlex
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 
@@ -7,7 +6,7 @@ from qm_template import PROGRAM
 from qm_template.checksum import fetch_checksum, save_checksum, verify_checksum
 from qm_template.config import Settings
 from qm_template.distros import DISTROS
-from qm_template.download import download_image, select_downloaders
+from qm_template.download import download_image, part_path, select_downloaders
 from qm_template.errors import QmTemplateError
 from qm_template.log import log
 from qm_template.pve import (
@@ -21,6 +20,7 @@ from qm_template.pve import (
     sshkeys_file,
     vm_config_path,
 )
+from qm_template.shell import pretty
 
 
 def add_download_arguments(parser: argparse.ArgumentParser) -> None:
@@ -36,7 +36,7 @@ def add_download_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="print the resolved image URL and exit",
+        help="print the download command and exit",
     )
 
 
@@ -61,10 +61,13 @@ def run_download(args: argparse.Namespace, settings: Settings) -> None:
     log.info("Image: %s", image.local_path)
     log.debug("URL: %s", image.url)
     log.debug("Checksum: %s (%s)", image.checksum_url, image.algorithm)
-    if args.dry_run:
-        print(image.url)
-        return
     destination = settings.images_dir / image.local_path
+    if args.dry_run:
+        downloader = select_downloaders(
+            settings.download.preferred, settings.download.connections
+        )[0]
+        print(pretty(downloader.build_command(image.url, part_path(destination))))
+        return
     destination.parent.mkdir(parents=True, exist_ok=True)
     expected = fetch_checksum(image.checksum_url, image.filename)
     if destination.is_file():
@@ -101,7 +104,7 @@ def add_create_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="print the qm command and exit",
+        help="print the assembled qm command and exit",
     )
 
 
@@ -147,7 +150,7 @@ def run_create(args: argparse.Namespace, settings: Settings) -> None:
     with sshkeys_file(create) as sshkeys:
         command = build_qm_create(vm_id, vm_name, image, sshkeys, create)
         if args.dry_run:
-            print(shlex.join(command))
+            print(pretty(command))
             return
         run_qm(command)
     log.info("Template %s (ID %d) created", vm_name, vm_id)

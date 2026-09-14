@@ -56,10 +56,12 @@ qm-template download
 qm-template download ubuntu --release noble --variant minimal
 qm-template download debian --release bookworm --tag 20260907-2594
 
-# only print the resolved URL
+# print the first available downloader's command without running it
 qm-template download --dry-run alpine
 ```
 
+`--dry-run` resolves the image and pretty prints the command of the first
+available downloader, one argument group per line, without downloading anything.
 Builds are pinned where the upstream provides dated snapshots (Debian, Ubuntu
 server, Arch Linux, openSUSE Tumbleweed), so a newer build is downloaded
 alongside the old one instead of overwriting it. Interrupted downloads are
@@ -84,7 +86,8 @@ qm-template create --dry-run --vm-id 9000
 ```
 
 `create` requires a Proxmox VE host and runs a single
-`qm create ... --template 1` command.
+`qm create ... --template 1` command, which `--dry-run` pretty prints without
+executing it.
 
 ## List distros
 

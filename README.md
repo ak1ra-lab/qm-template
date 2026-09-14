@@ -83,13 +83,15 @@ qm-template download debian
 qm-template download ubuntu --release noble --variant minimal
 qm-template download debian --release bookworm --tag 20260907-2594
 
-# only print the resolved URL
+# print the first available downloader's command without running it
 qm-template download --dry-run alpine
 
 # list distros and their configured defaults
 qm-template distros
 ```
 
+`--dry-run` resolves the image and pretty prints the command of the first
+available downloader, one argument group per line, without downloading anything.
 Builds are pinned where the upstream provides dated snapshots (Debian, Ubuntu
 server, Arch Linux, openSUSE Tumbleweed): the newest build is selected, and a
 newer build is downloaded alongside the old one instead of overwriting it.
@@ -114,18 +116,32 @@ qm-template create --vm-id 9000 --vm-name debian-13-template
 qm-template create --dry-run --vm-id 9000
 ```
 
-The resulting command is a single `qm create` invocation:
+The resulting command is a single `qm create` invocation, which `--dry-run`
+pretty prints as:
 
 ```shell
-qm create 9000 --name debian-13-template \
-    --cpu cputype=host --cores 1 --balloon 1024 --memory 1024 \
+qm create 9000 \
+    --name debian-13-template \
+    --cpu cputype=host \
+    --cores 1 \
+    --balloon 1024 \
+    --memory 1024 \
     --net0 model=virtio,firewall=1,bridge=vmbr0 \
-    --scsihw virtio-scsi-single --agent type=virtio,enabled=1 \
-    --machine q35 --ostype l26 --serial0 socket --vga serial0 \
+    --scsihw virtio-scsi-single \
+    --agent type=virtio,enabled=1 \
+    --machine q35 \
+    --ostype l26 \
+    --serial0 socket \
+    --vga serial0 \
     --scsi0 local-lvm:0,import-from=/path/to/image.qcow2 \
-    --scsi1 local-lvm:cloudinit --boot order=scsi0 --ipconfig0 ip=dhcp \
-    --ciupgrade 0 --ciuser debian --cipassword debian \
-    --sshkeys ~/.ssh/id_ed25519.pub --template 1
+    --scsi1 local-lvm:cloudinit \
+    --boot order=scsi0 \
+    --ipconfig0 ip=dhcp \
+    --ciupgrade 0 \
+    --ciuser debian \
+    --cipassword debian \
+    --sshkeys ~/.ssh/id_ed25519.pub \
+    --template 1
 ```
 
 ## Supported distros
@@ -167,6 +183,7 @@ qm-template/
 │   ├── http.py         # HTTP helpers and directory listings
 │   ├── log.py          # logging setup
 │   ├── pve.py          # qm/pvesm integration
+│   ├── shell.py        # grouped command rendering and execution
 │   └── distros/        # one module per distro family
 └── tests/
 ```
