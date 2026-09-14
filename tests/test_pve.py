@@ -7,7 +7,6 @@ from qm_template.errors import QmTemplateError
 from qm_template.pve import (
     build_qm_create,
     default_vm_name,
-    find_images,
     sshkeys_file,
 )
 from qm_template.shell import flatten
@@ -45,26 +44,6 @@ def test_build_qm_create_is_single_complete_command():
     assert "local-zfs:cloudinit" in argv
     assert "--ciuser" in argv
     assert "--sshkeys" in argv
-
-
-def test_find_images_filters_and_sorts(tmp_path):
-    (tmp_path / "b.qcow2").write_bytes(b"")
-    (tmp_path / "a.img").write_bytes(b"")
-    (tmp_path / "notes.txt").write_text("")
-    assert [p.name for p in find_images(tmp_path, None)] == ["a.img", "b.qcow2"]
-    assert [p.name for p in find_images(tmp_path, "qcow2")] == ["b.qcow2"]
-
-
-def test_find_images_includes_nested_build_directories(tmp_path):
-    nested = tmp_path / "debian" / "trixie" / "20260413-2447"
-    nested.mkdir(parents=True)
-    (nested / "debian-13-genericcloud-amd64.qcow2").write_bytes(b"")
-    assert [p.name for p in find_images(tmp_path, None)] == [
-        "debian-13-genericcloud-amd64.qcow2"
-    ]
-    assert find_images(tmp_path, "trixie")[0].relative_to(tmp_path) == Path(
-        "debian/trixie/20260413-2447/debian-13-genericcloud-amd64.qcow2"
-    )
 
 
 def test_sshkeys_merges_and_dedupes_inline_and_files(tmp_path):
@@ -113,8 +92,3 @@ def test_sshkeys_require_a_source():
     with pytest.raises(QmTemplateError):
         with sshkeys_file(settings):
             pass
-
-
-def test_find_images_reports_missing_directory(tmp_path):
-    with pytest.raises(QmTemplateError):
-        find_images(tmp_path / "missing", None)

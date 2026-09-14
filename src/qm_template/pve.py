@@ -20,7 +20,6 @@ from qm_template.log import log
 from qm_template.shell import CommandGroups, flatten
 
 PVE_VM_DIR = Path("/etc/pve/qemu-server")
-IMAGE_SUFFIXES = {".qcow2", ".img"}
 
 
 def prompt(message: str) -> str:
@@ -48,31 +47,6 @@ def choose_vm_id() -> int:
             log.warning("VM ID %d is already in use", vm_id)
             continue
         return vm_id
-
-
-def find_images(directory: Path, pattern: str | None) -> list[Path]:
-    if not directory.is_dir():
-        raise QmTemplateError(
-            f"images directory not found: {directory} (run `{PROGRAM} download` first)"
-        )
-    images = sorted(
-        path
-        for path in directory.rglob("*")
-        if path.is_file() and path.suffix in IMAGE_SUFFIXES
-    )
-    if pattern:
-        try:
-            regex = re.compile(pattern)
-        except re.error as exc:
-            raise QmTemplateError(f"invalid pattern {pattern!r}: {exc}") from exc
-        images = [
-            path
-            for path in images
-            if regex.search(path.relative_to(directory).as_posix())
-        ]
-    if not images:
-        raise QmTemplateError(f"no cloud images found in {directory}")
-    return images
 
 
 def choose_image(images: Sequence[Path], directory: Path) -> Path:

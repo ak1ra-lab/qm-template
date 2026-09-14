@@ -1,13 +1,22 @@
 import argparse
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
+from pathlib import Path
 
 from qm_template import PROGRAM
 from qm_template.checksum import fetch_checksum, save_checksum, verify_checksum
 from qm_template.config import Settings
 from qm_template.distros import DISTROS
 from qm_template.download import download_image, part_path, select_downloaders
-from qm_template.errors import QmTemplateError
+from qm_template.errors import QmTemplateError, UserCancelled
+from qm_template.images import (
+    checksum_sidecar,
+    find_images,
+    human_size,
+    image_sidecars,
+    orphaned_sidecars,
+    superseded_images,
+)
 from qm_template.log import log
 from qm_template.pve import (
     build_qm_create,
@@ -15,7 +24,7 @@ from qm_template.pve import (
     choose_image,
     choose_vm_id,
     default_vm_name,
-    find_images,
+    prompt,
     run_qm,
     sshkeys_file,
     vm_config_path,
@@ -170,6 +179,66 @@ def run_distros(args: argparse.Namespace, settings: Settings) -> None:
         print(f"{distro.name:<12} {distro.description:<26} {rendered}")
 
 
+def add_images_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("pattern", nargs="?", help="regex to filter local images")
+    parser.add_argument(
+        "--prune",
+        action="store_true",
+        help="remove superseded builds and orphaned checksum files",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="with --prune, list the files that would be removed",
+    )
+    parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="remove without asking for confirmation",
+    )
+
+
+def _print_images(images: Sequence[Path], directory: Path) -> None:
+    for image in images:
+        sidecar = checksum_sidecar(image)
+        algorithm = sidecar.suffix.lstrip(".") if sidecar else "-"
+        print(
+            f"{human_size(image.stat().st_size):>9}  {algorithm:<7}  "
+            f"{image.relative_to(directory)}"
+        )
+
+
+def run_images(args: argparse.Namespace, settings: Settings) -> None:
+    images = find_images(settings.images_dir, args.pattern, required=False)
+    if not args.prune:
+        if not images:
+            log.info("No cloud images found in %s", settings.images_dir)
+            return
+        _print_images(images, settings.images_dir)
+        return
+    superseded = superseded_images(images, settings.images_dir)
+    candidates = set(superseded) | set(orphaned_sidecars(settings.images_dir))
+    for image in superseded:
+        candidates.update(image_sidecars(image))
+    candidates = sorted(candidates)
+    if not candidates:
+        log.info("Nothing to prune in %s", settings.images_dir)
+        return
+    for path in candidates:
+        print(path.relative_to(settings.images_dir))
+    if args.dry_run:
+        log.info("%d file(s) would be removed", len(candidates))
+        return
+    if not args.yes:
+        answer = prompt(f"Remove {len(candidates)} file(s)? [y/N] ")
+        if answer.lower() not in {"y", "yes"}:
+            raise UserCancelled
+    for path in candidates:
+        path.unlink(missing_ok=True)
+    log.info("Removed %d file(s)", len(candidates))
+
+
 @dataclass(frozen=True)
 class Command:
     name: str
@@ -196,6 +265,13 @@ COMMANDS: tuple[Command, ...] = (
         run=run_create,
         description="Create a Proxmox VE VM template from a downloaded cloud image.",
         aliases=("template",),
+    ),
+    Command(
+        name="images",
+        help="list local images and prune superseded builds",
+        add_arguments=add_images_arguments,
+        run=run_images,
+        description="List downloaded cloud images, or prune superseded builds.",
     ),
     Command(
         name="distros",
