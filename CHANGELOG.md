@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-09-14
+
+### Added
+
+- Add `qm-template images` to list local images with their size and checksum
+  sidecar; `--prune` removes older builds whose names differ only in
+  dates/versions, their sidecars and orphaned checksum files, `--dry-run` only
+  lists the affected files and `--yes` skips the confirmation prompt.
+- Choose the next free VM ID automatically from `qm list`, falling back to
+  `/etc/pve/qemu-server/*.conf`; `create.start_id` (default 9000) sets the first
+  candidate, `create.step` sets the increment and `--vm-id` still forces a
+  specific ID.
+- Set the CPU type with `create.cpu` or `--cpu`, passed as `cputype=...`
+  (default `host`, as before).
+- Hide downloader progress output with `download.quiet` or
+  `--quiet`/`--no-quiet`.
+- Retry checksum files and directory listings with exponential backoff on
+  transient network and 5xx errors.
+
+### Changed
+
+- Show downloader progress by default: aria2c no longer runs with
+  `--console-log-level=warn --summary-interval=0`, while wget and curl keep
+  their progress bars unless `--quiet` is used.
+- Download an image once more from scratch when it passes the downloaders but
+  fails checksum verification.
+- Report the `qm destroy` command needed to clean up an incomplete VM left
+  behind by a failed `qm create`.
+
 ## [0.1.0] - 2026-09-14
 
 ### Added
