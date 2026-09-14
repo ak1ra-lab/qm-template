@@ -1,0 +1,23 @@
+# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
+_commit: v0.1.0-7-gb2e1a57
+_src_path: .
+author_email: git@ak1ra.xyz
+author_name: ak1ra
+copyright_date: '2026'
+copyright_holder: ak1ra
+copyright_license: MIT
+default_branch: master
+docs_hosting: github-pages
+docs_site_url: https://ak1ra-lab.github.io/qm-template/
+project_description: Proxmox VE template helper scripts
+project_kind: cli
+project_name: qm-template
+python_min_version: '3.11'
+python_package_command_line_name: qm-template
+python_package_distribution_name: qm-template
+python_package_import_name: qm_template
+repository_name: qm-template
+repository_namespace: ak1ra-lab
+repository_provider_kind: github
+requires_python: '>=3.11'
+with_ansible: false
