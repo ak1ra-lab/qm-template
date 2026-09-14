@@ -10,9 +10,12 @@ with Cloud-Init support.
 - **Checksum verification** against each distro's official checksum files,
   saved next to the image (`<image>.sha256`/`.sha512`).
 - **Resumable downloads** via `axel`, `aria2c`, `wget` or `curl`, whichever is
-  available.
+  available, with progress output (silence with `--quiet`) and retries.
 - **A single `qm create ... --template 1` command** instead of a chain of
-  `qm set` calls.
+  `qm set` calls, with automatic next free VM ID selection and a configurable
+  CPU type.
+- **Local image inventory** with `qm-template images`, including pruning of
+  superseded dated builds.
 - **TOML configuration** read with `tomllib` from the standard library.
 
 ## Quick start

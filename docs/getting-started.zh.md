@@ -34,9 +34,12 @@ uv tool install .
 ```
 
 `download.preferred` 指定下载器优先级，`download.connections` 设置 `axel` 和
-`aria2c` 的并行连接数。`create.sshkeys` 以内联列表提供 Cloud-Init 注入的 SSH
-公钥，`create.sshkeys_files` 指向公钥文件列表，两者的内容会按 SSH 指纹合并去重，
-且至少需要配置一个公钥。也可以手动创建示例配置：
+`aria2c` 的并行连接数。默认显示下载进度，可用 `download.quiet = true` 或
+`--quiet` 关闭。`create.cpu` 设置传给 `qm` 的 CPU 类型（`cputype=...`，默认
+`host`，性能最好但无法跨 CPU 代际迁移）。`create.start_id` 和 `create.step`
+（默认 `9000` 和 `1`）控制 VM ID 的自动选择。`create.sshkeys` 以内联列表提供
+Cloud-Init 注入的 SSH 公钥，`create.sshkeys_files` 指向公钥文件列表，两者的内容会
+按 SSH 指纹合并去重，且至少需要配置一个公钥。也可以手动创建示例配置：
 
 ```shell
 install -d /etc/qm-template
@@ -57,32 +60,54 @@ qm-template download debian --release bookworm --tag 20260907-2594
 
 # 仅打印首个可用下载器的命令（不执行）
 qm-template download --dry-run alpine
+
+# 关闭下载进度输出
+qm-template download --quiet alpine
+
+# 列出已下载镜像的大小与校验和 sidecar
+qm-template images
+
+# 清理被取代的日期构建和孤立的校验和文件
+qm-template images --prune
 ```
 
 `--dry-run` 会解析镜像并 pretty print 首个可用下载器的命令，每个参数组一行，不执行下载。
 上游提供日期快照的发行版（Debian、Ubuntu server、Arch Linux、openSUSE
 Tumbleweed）会固定到最新构建，新构建会与旧构建并存而不是覆盖。中断的下载会在下次运行时
-续传，未完成的文件保存为 `<image>.part`。获取到的校验和会与镜像一起保存为
+续传，未完成的文件保存为 `<image>.part`。下载失败会回退到下一个配置的下载器并从零重试；
+下载完成但校验和不匹配时会再从头下载一次，仍失败才报错。校验和文件与目录列表在遇到瞬时
+5xx 或网络错误时会按指数退避重试。获取到的校验和会与镜像一起保存为
 `<image>.sha256` 或 `<image>.sha512`，取决于上游使用的算法。
+
+`qm-template images [pattern]` 会为每个镜像打印一行，包含可读大小和校验和 sidecar
+算法。`--prune` 会删除名称仅相差构建日期/版本的旧构建及其校验和 sidecar，并清理没有
+对应镜像的校验和文件；除非传入 `--yes`，否则会先请求确认，`--dry-run` 仅列出将要删除的
+文件。
 
 ## 创建虚拟机模板
 
 ```shell
-# 交互式选择镜像和 VM ID
+# 交互式选择镜像，VM ID 自动选择
 qm-template create
 
 # 使用正则表达式按相对路径过滤镜像
 qm-template create debian-13
 
-# 非交互式
+# 非交互式，显式指定 ID
 qm-template create --vm-id 9000 --vm-name debian-13-template
+
+# 使用便于迁移的 CPU 类型
+qm-template create --cpu x86-64-v2-AES
 
 # 仅查看组装好的命令，不执行
 qm-template create --dry-run --vm-id 9000
 ```
 
 `create` 需要 Proxmox VE 主机，并执行单条 `qm create ... --template 1` 命令；
-`--dry-run` 会 pretty print 组装好的命令而不执行。
+`--dry-run` 会 pretty print 组装好的命令而不执行。省略 `--vm-id` 时，会从 `qm list`
+（回退到 `/etc/pve/qemu-server/*.conf`）收集已占用的 ID，并使用从
+`create.start_id`（默认 `9000`）开始、以 `create.step` 递增的首个空闲 ID。如果
+`qm create` 失败并留下了 VM 配置，会提示用于清理的 `qm destroy` 命令。
 
 ## 列出发行版
 

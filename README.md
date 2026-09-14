@@ -16,10 +16,21 @@ with Cloud-Init support.
 - **Pinned builds**: dated builds are selected where the upstream offers them,
   and images mirror the upstream directory layout
 - **Resumable downloads**: uses `axel`, `aria2c`, `wget` or `curl`, whichever
-  is available, with a configurable number of parallel connections
+  is available, with a configurable number of parallel connections, progress
+  output by default (silence it with `--quiet`) and a from-scratch retry when a
+  download fails or fails checksum verification
+- **Retrying metadata fetches**: checksum and directory listings survive
+  transient 5xx/network errors with exponential backoff
+- **Local image inventory**: `qm-template images` lists downloaded images with
+  their size and checksum sidecar, and `--prune` removes superseded dated
+  builds and orphaned checksum files
 - **Complete `qm create` command**: the whole template is assembled into a
   single `qm create ... --template 1` invocation instead of a chain of
   `qm set` calls
+- **Automatic VM IDs**: the next free ID is picked from `qm list` (or the
+  Proxmox config directory), starting at `create.start_id` (default 9000)
+- **Configurable CPU type**: `create.cpu`/`--cpu` overrides the default
+  `cputype=host` when migration across CPU generations matters
 - **TOML configuration**: read with `tomllib` from the standard library
 - **Standard library only**: Python >= 3.11; external commands are limited to
   the downloader and the Proxmox VE `qm`/`pvesm` tools
@@ -60,10 +71,14 @@ Downloaded images are stored in `/var/lib/qm-template` unless
 ```
 
 `download.preferred` orders the downloaders and `download.connections` sets the
-number of parallel connections for `axel` and `aria2c`. `create.sshkeys` lists
-inline SSH public keys and `create.sshkeys_files` lists key files; the contents
-of both are merged and deduplicated by key fingerprint for Cloud-Init, and at
-least one key is required. To create the file manually instead:
+number of parallel connections for `axel` and `aria2c`. Downloads show progress
+by default; set `download.quiet = true` or pass `--quiet` to hide it.
+`create.cpu` sets the CPU type passed as `cputype=...` (default `host`).
+`create.start_id` and `create.step` drive automatic VM ID selection (default
+`9000` and `1`). `create.sshkeys` lists inline SSH public keys and
+`create.sshkeys_files` lists key files; the contents of both are merged and
+deduplicated by key fingerprint for Cloud-Init, and at least one key is
+required. To create the file manually instead:
 
 ```shell
 install -d /etc/qm-template
@@ -88,6 +103,15 @@ qm-template download debian --release bookworm --tag 20260907-2594
 # print the first available downloader's command without running it
 qm-template download --dry-run alpine
 
+# hide the downloader progress output
+qm-template download --quiet alpine
+
+# list downloaded images with size and checksum sidecar
+qm-template images
+
+# remove superseded dated builds and orphaned checksum files
+qm-template images --prune
+
 # list distros and their configured defaults
 qm-template distros
 ```
@@ -98,25 +122,45 @@ Builds are pinned where the upstream provides dated snapshots (Debian, Ubuntu
 server, Arch Linux, openSUSE Tumbleweed): the newest build is selected, and a
 newer build is downloaded alongside the old one instead of overwriting it.
 Interrupted downloads are resumed on the next run; partial files are stored as
-`<image>.part`. The checksum fetched from the upstream source is saved next to
-the image as `<image>.sha256` or `<image>.sha512`, depending on the upstream
-algorithm.
+`<image>.part`. A failed download falls back to the next configured downloader
+and is retried from scratch; a completed download that fails checksum
+verification is downloaded once more from scratch before the command fails.
+Checksum files and directory listings are retried with exponential backoff on
+transient 5xx and network errors. The checksum fetched from the upstream source
+is saved next to the image as `<image>.sha256` or `<image>.sha512`, depending on
+the upstream algorithm.
+
+`qm-template images [pattern]` prints one line per image with a human-readable
+size and the checksum sidecar algorithm. `--prune` removes older builds whose
+names differ only in build dates/versions, together with their checksum
+sidecars, plus checksum files whose image is gone; it asks for confirmation
+unless `--yes` is passed, and `--dry-run` only lists the files it would remove.
 
 ### Create a VM template
 
 ```shell
-# interactive image and VM ID selection
+# interactive image selection; the VM ID is chosen automatically
 qm-template create
 
 # filter images with a regular expression on the relative path
 qm-template create debian-13
 
-# non-interactive
+# non-interactive with an explicit ID
 qm-template create --vm-id 9000 --vm-name debian-13-template
+
+# use a migration-friendly CPU type
+qm-template create --cpu x86-64-v2-AES
 
 # inspect the assembled command without running it
 qm-template create --dry-run --vm-id 9000
 ```
+
+When `--vm-id` is omitted, `qm-template` collects the IDs in use from
+`qm list` (falling back to `/etc/pve/qemu-server/*.conf`) and picks the first
+free ID at or after `create.start_id` (default `9000`), advancing by
+`create.step` (default `1`); the 9000+ range keeps templates away from regular
+VMs. If `qm create` fails, an existing but incomplete VM config is reported with
+the `qm destroy` command needed to clean it up.
 
 The resulting command is a single `qm create` invocation, which `--dry-run`
 pretty prints as:
@@ -178,14 +222,15 @@ qm-template/
 ├── qm-template.example.toml
 ├── src/qm_template/
 │   ├── cli.py          # argument parsing and entry point
-│   ├── commands.py     # download / create / distros commands
+│   ├── commands.py     # download / create / images / distros commands
 │   ├── config.py       # TOML settings and first-run config seeding
 │   ├── checksum.py     # checksum parsing and verification
 │   ├── config.default.toml  # default configuration shipped in the wheel
 │   ├── download.py     # axel / aria2c / wget / curl wrappers
-│   ├── http.py         # HTTP helpers and directory listings
+│   ├── http.py         # HTTP helpers, retries and directory listings
+│   ├── images.py       # local image inventory and pruning
 │   ├── log.py          # logging setup
-│   ├── pve.py          # qm/pvesm integration
+│   ├── pve.py          # qm/pvesm integration and VM ID selection
 │   ├── shell.py        # grouped command rendering and execution
 │   └── distros/        # one module per distro family
 └── tests/
