@@ -6,7 +6,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from collections.abc import Iterator, Sequence
+from collections.abc import Generator, Sequence
 from pathlib import Path
 
 from qm_template import PROGRAM
@@ -108,7 +108,7 @@ def check_storage(storage: str) -> None:
 
 
 @contextlib.contextmanager
-def sshkeys_file(settings: CreateSettings) -> Iterator[Path]:
+def sshkeys_file(settings: CreateSettings) -> Generator[Path, None, None]:
     configured = settings.sshkeys_file
     if configured:
         path = Path(os.path.expandvars(configured)).expanduser()
