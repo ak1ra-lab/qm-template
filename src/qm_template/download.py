@@ -16,6 +16,9 @@ class Downloader(ABC):
 
     name: ClassVar[str]
 
+    def __init__(self, connections: int = 1) -> None:
+        self.connections = connections
+
     @classmethod
     def available(cls) -> bool:
         return shutil.which(cls.name) is not None
@@ -36,8 +39,22 @@ class Aria2c(Downloader):
             "--file-allocation=none",
             "--console-log-level=warn",
             "--summary-interval=0",
+            f"--max-connection-per-server={self.connections}",
+            f"--split={self.connections}",
             f"--dir={destination.parent}",
             f"--out={destination.name}",
+            url,
+        ]
+
+
+class Axel(Downloader):
+    name = "axel"
+
+    def build_command(self, url: str, destination: Path) -> list[str]:
+        return [
+            self.name,
+            f"--num-connections={self.connections}",
+            f"--output={destination}",
             url,
         ]
 
@@ -76,20 +93,22 @@ class Curl(Downloader):
         ]
 
 
-DOWNLOADERS: dict[str, Downloader] = {
-    downloader.name: downloader for downloader in (Aria2c(), Wget(), Curl())
+DOWNLOADERS: dict[str, type[Downloader]] = {
+    downloader.name: downloader for downloader in (Aria2c, Axel, Wget, Curl)
 }
 
 
-def select_downloaders(preferred: Sequence[str]) -> list[Downloader]:
+def select_downloaders(
+    preferred: Sequence[str], connections: int = 1
+) -> list[Downloader]:
     selected = []
     for name in preferred:
-        downloader = DOWNLOADERS.get(name)
-        if downloader is None:
+        downloader_class = DOWNLOADERS.get(name)
+        if downloader_class is None:
             log.warning("Unknown downloader %r in configuration", name)
             continue
-        if downloader.available():
-            selected.append(downloader)
+        if downloader_class.available():
+            selected.append(downloader_class(connections))
         else:
             log.debug("%s is not installed", name)
     if not selected:

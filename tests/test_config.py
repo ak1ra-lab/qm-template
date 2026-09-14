@@ -10,7 +10,8 @@ def test_builtin_defaults(tmp_path):
     settings = load_settings(tmp_path / "missing.toml", explicit=False)
     assert settings.images_dir == Path("/var/lib/qm-template")
     assert settings.download.default_distro == "debian"
-    assert settings.download.preferred == ("aria2c", "wget", "curl")
+    assert settings.download.preferred == ("axel", "aria2c", "wget", "curl")
+    assert settings.download.connections == 8
     assert settings.create.storage == "local-lvm"
     assert settings.create.cores == 1
     assert settings.create.memory == 1024
@@ -32,6 +33,7 @@ def test_parse_overrides():
             "download": {
                 "default_distro": "rocky",
                 "preferred": ["wget"],
+                "connections": 4,
                 "rocky": {"release": 10},
             },
             "create": {"storage": "local-zfs", "cores": 4, "memory": 4096},
@@ -41,6 +43,7 @@ def test_parse_overrides():
     assert settings.images_dir == Path.home() / "images"
     assert settings.download.default_distro == "rocky"
     assert settings.download.preferred == ("wget",)
+    assert settings.download.connections == 4
     assert settings.download.defaults["rocky"]["release"] == "10"
     assert settings.create.storage == "local-zfs"
     assert settings.create.cores == 4
@@ -65,3 +68,12 @@ def test_invalid_types_raise():
         parse_settings({"create": {"cores": "many"}}, source=Path("config.toml"))
     with pytest.raises(QmTemplateError):
         parse_settings({"download": {"preferred": "wget"}}, source=Path("config.toml"))
+    with pytest.raises(QmTemplateError):
+        parse_settings(
+            {"download": {"connections": "many"}}, source=Path("config.toml")
+        )
+
+
+def test_non_positive_connections_raise():
+    with pytest.raises(QmTemplateError):
+        parse_settings({"download": {"connections": 0}}, source=Path("config.toml"))

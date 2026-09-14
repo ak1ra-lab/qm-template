@@ -75,7 +75,9 @@ def run_download(args: argparse.Namespace, settings: Settings) -> None:
         log.warning("Checksum mismatch for %s, removing it", destination)
         destination.unlink()
     part = download_image(
-        image, destination, select_downloaders(settings.download.preferred)
+        image,
+        destination,
+        select_downloaders(settings.download.preferred, settings.download.connections),
     )
     log.info("Verifying checksum")
     if not verify_checksum(part, expected, image.algorithm):

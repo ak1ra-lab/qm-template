@@ -30,7 +30,8 @@ def resolve_config_path(cli_value: str | None) -> tuple[Path, bool]:
 
 @dataclass(frozen=True)
 class DownloadSettings:
-    preferred: tuple[str, ...] = ("aria2c", "wget", "curl")
+    preferred: tuple[str, ...] = ("axel", "aria2c", "wget", "curl")
+    connections: int = 8
     default_distro: str = "debian"
     defaults: Mapping[str, Mapping[str, str]] = field(default_factory=dict)
 
@@ -98,7 +99,7 @@ def _string_list(
 def _parse_download(table: Mapping[str, Any], source: Path) -> DownloadSettings:
     defaults: dict[str, dict[str, str]] = {}
     for key, value in table.items():
-        if key in {"preferred", "default_distro"}:
+        if key in {"preferred", "connections", "default_distro"}:
             continue
         if key not in DISTROS:
             raise QmTemplateError(
@@ -119,8 +120,14 @@ def _parse_download(table: Mapping[str, Any], source: Path) -> DownloadSettings:
                 )
             params[param] = str(raw)
         defaults[key] = params
+    connections = _int(table, "connections", 8, source)
+    if connections < 1:
+        raise QmTemplateError(f"'connections' must be a positive integer in {source}")
     return DownloadSettings(
-        preferred=_string_list(table, "preferred", ("aria2c", "wget", "curl"), source),
+        preferred=_string_list(
+            table, "preferred", ("axel", "aria2c", "wget", "curl"), source
+        ),
+        connections=connections,
         default_distro=_str(table, "default_distro", "debian", source),
         defaults=defaults,
     )
