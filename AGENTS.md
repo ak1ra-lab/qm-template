@@ -40,7 +40,9 @@ PyPI.
   entrypoint `qm-template`. Runtime dependencies stay empty (standard library
   only).
 - Defaults: config `/etc/qm-template/config.toml`, images
-  `/var/lib/qm-template`.
+  `/var/lib/qm-template`, mirroring the upstream layout
+  (`<distro>/<release>/[<tag>/]<filename>`). Dated builds are pinned where the
+  upstream provides them.
 - Tests live under `tests/` and track public behavior, especially the CLI.
 - `pyproject.toml` is the single source of truth for dependencies and metadata.
 

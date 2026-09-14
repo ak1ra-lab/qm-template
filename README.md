@@ -13,6 +13,8 @@ with Cloud-Init support.
   CentOS Stream, Alpine, openSUSE and Arch Linux
 - **Checksum verification**: SHA-256/SHA-512 fetched from each distro's official
   checksum files and saved next to the image (`<image>.sha256`/`.sha512`)
+- **Pinned builds**: dated builds are selected where the upstream offers them,
+  and images mirror the upstream directory layout
 - **Resumable downloads**: uses `aria2c`, `wget` or `curl`, whichever is
   available
 - **Complete `qm create` command**: the whole template is assembled into a
@@ -50,7 +52,13 @@ uv run qm-template --help
 The configuration file is optional and loaded from `/etc/qm-template/config.toml`.
 Use `--config PATH` or `QM_TEMPLATE_CONFIG` to point elsewhere. Downloaded
 images are stored in `/var/lib/qm-template` unless `paths.images_dir` overrides
-it. Start from the example file:
+it, mirroring the upstream layout:
+
+```text
+<images_dir>/<distro>/<release>/[<tag>/]<filename>
+```
+
+Start from the example file:
 
 ```shell
 install -d /etc/qm-template
@@ -79,6 +87,9 @@ qm-template download --dry-run alpine
 qm-template distros
 ```
 
+Builds are pinned where the upstream provides dated snapshots (Debian, Ubuntu
+server, Arch Linux, openSUSE Tumbleweed): the newest build is selected, and a
+newer build is downloaded alongside the old one instead of overwriting it.
 Interrupted downloads are resumed on the next run; partial files are stored as
 `<image>.part`. The checksum fetched from the upstream source is saved next to
 the image as `<image>.sha256` or `<image>.sha512`, depending on the upstream
@@ -90,7 +101,7 @@ algorithm.
 # interactive image and VM ID selection
 qm-template create
 
-# filter images with a regular expression
+# filter images with a regular expression on the relative path
 qm-template create debian-13
 
 # non-interactive

@@ -27,7 +27,11 @@ uv tool install .
 The configuration file is optional and loaded from
 `/etc/qm-template/config.toml`. Use `--config PATH` or `QM_TEMPLATE_CONFIG` to
 point elsewhere. Downloaded images are stored in `/var/lib/qm-template` unless
-`paths.images_dir` overrides it.
+`paths.images_dir` overrides it, mirroring the upstream layout:
+
+```text
+<images_dir>/<distro>/<release>/[<tag>/]<filename>
+```
 
 Start from the example configuration:
 
@@ -52,9 +56,12 @@ qm-template download debian --release bookworm --tag 20260907-2594
 qm-template download --dry-run alpine
 ```
 
-Interrupted downloads are resumed on the next run; partial files are stored as
-`<image>.part`. The fetched checksum is saved next to the image as
-`<image>.sha256` or `<image>.sha512`, depending on the upstream algorithm.
+Builds are pinned where the upstream provides dated snapshots (Debian, Ubuntu
+server, Arch Linux, openSUSE Tumbleweed), so a newer build is downloaded
+alongside the old one instead of overwriting it. Interrupted downloads are
+resumed on the next run; partial files are stored as `<image>.part`. The
+fetched checksum is saved next to the image as `<image>.sha256` or
+`<image>.sha512`, depending on the upstream algorithm.
 
 ## Create a VM template
 
@@ -62,7 +69,7 @@ Interrupted downloads are resumed on the next run; partial files are stored as
 # interactive image and VM ID selection
 qm-template create
 
-# filter images with a regular expression
+# filter images with a regular expression on the relative path
 qm-template create debian-13
 
 # non-interactive

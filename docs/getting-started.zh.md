@@ -26,7 +26,11 @@ uv tool install .
 
 配置文件是可选的，默认从 `/etc/qm-template/config.toml` 加载。可通过
 `--config PATH` 或 `QM_TEMPLATE_CONFIG` 指定其他位置。下载的镜像默认存储在
-`/var/lib/qm-template`，可由 `paths.images_dir` 覆盖。
+`/var/lib/qm-template`，可由 `paths.images_dir` 覆盖，并按上游目录结构存放：
+
+```text
+<images_dir>/<distro>/<release>/[<tag>/]<filename>
+```
 
 从示例配置开始：
 
@@ -51,8 +55,10 @@ qm-template download debian --release bookworm --tag 20260907-2594
 qm-template download --dry-run alpine
 ```
 
-中断的下载会在下次运行时续传，未完成的文件保存为 `<image>.part`。获取到的校验和会与镜像
-一起保存为 `<image>.sha256` 或 `<image>.sha512`，取决于上游使用的算法。
+上游提供日期快照的发行版（Debian、Ubuntu server、Arch Linux、openSUSE
+Tumbleweed）会固定到最新构建，新构建会与旧构建并存而不是覆盖。中断的下载会在下次运行时
+续传，未完成的文件保存为 `<image>.part`。获取到的校验和会与镜像一起保存为
+`<image>.sha256` 或 `<image>.sha512`，取决于上游使用的算法。
 
 ## 创建虚拟机模板
 
@@ -60,7 +66,7 @@ qm-template download --dry-run alpine
 # 交互式选择镜像和 VM ID
 qm-template create
 
-# 使用正则表达式过滤镜像
+# 使用正则表达式按相对路径过滤镜像
 qm-template create debian-13
 
 # 非交互式

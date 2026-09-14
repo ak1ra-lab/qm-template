@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   openSUSE and Arch Linux.
 - Fetched checksums are saved next to each image as `<image>.sha256` or
   `<image>.sha512`, depending on the upstream algorithm.
+- Images mirror the upstream layout as `<distro>/<release>/[<tag>/]<filename>`
+  and are pinned to the newest dated build where the upstream provides one
+  (Debian, Ubuntu server, Arch Linux, openSUSE Tumbleweed).
 - `qm-template create` assembles a single `qm create ... --template 1` command
   to build a Proxmox VE VM template.
 - `qm-template distros` lists the supported distros and their configured
