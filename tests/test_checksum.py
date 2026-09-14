@@ -2,10 +2,23 @@ import hashlib
 
 import pytest
 
-from qm_template.checksum import parse_checksum, save_checksum, verify_checksum
+from qm_template.checksum import (
+    fetch_checksum,
+    parse_checksum,
+    save_checksum,
+    verify_checksum,
+)
 from qm_template.errors import QmTemplateError
 
 DIGEST = "a" * 128
+
+
+def test_fetch_checksum_uses_http_helper(monkeypatch):
+    monkeypatch.setattr(
+        "qm_template.checksum.http_get_text",
+        lambda url: f"{DIGEST}  image.qcow2\n",
+    )
+    assert fetch_checksum("https://example.com/SHA512SUMS", "image.qcow2") == DIGEST
 
 
 def test_parse_gnu_format():

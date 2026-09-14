@@ -6,8 +6,13 @@ from pathlib import Path
 from qm_template import PROGRAM
 from qm_template.checksum import fetch_checksum, save_checksum, verify_checksum
 from qm_template.config import Settings
-from qm_template.distros import DISTROS
-from qm_template.download import download_image, part_path, select_downloaders
+from qm_template.distros import DISTROS, RemoteImage
+from qm_template.download import (
+    Downloader,
+    download_image,
+    part_path,
+    select_downloaders,
+)
 from qm_template.errors import QmTemplateError, UserCancelled
 from qm_template.images import (
     checksum_sidecar,
@@ -57,6 +62,23 @@ def add_download_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _download_verified(
+    image: RemoteImage,
+    destination: Path,
+    downloaders: list[Downloader],
+    expected: str,
+) -> Path:
+    for attempt in range(1, 3):
+        if attempt > 1:
+            log.warning("Checksum mismatch, downloading again from scratch")
+        part = download_image(image, destination, downloaders)
+        log.info("Verifying checksum")
+        if verify_checksum(part, expected, image.algorithm):
+            return part
+        part.unlink(missing_ok=True)
+    raise QmTemplateError("downloaded image failed checksum verification")
+
+
 def run_download(args: argparse.Namespace, settings: Settings) -> None:
     name = args.distro or settings.download.default_distro
     distro = DISTROS.get(name)
@@ -95,11 +117,7 @@ def run_download(args: argparse.Namespace, settings: Settings) -> None:
             return
         log.warning("Checksum mismatch for %s, removing it", destination)
         destination.unlink()
-    part = download_image(image, destination, downloaders)
-    log.info("Verifying checksum")
-    if not verify_checksum(part, expected, image.algorithm):
-        part.unlink(missing_ok=True)
-        raise QmTemplateError("downloaded image failed checksum verification")
+    part = _download_verified(image, destination, downloaders, expected)
     part.replace(destination)
     save_checksum(destination, expected, image.algorithm)
     log.info("Saved %s", destination)
