@@ -18,6 +18,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `<image>.iso`); an existing guest disk is kept unless `--force` is passed,
   while the seed ISO is rebuilt on every run. `--vm-name` and `--dry-run` are
   also supported.
+- Show every distro parameter with its default and accepted values in
+  `qm-template distros`, and describe a single distro with
+  `qm-template distros <name>`.
+- Validate configuration with `pydantic-settings` and support `QM_TEMPLATE_*`
+  environment variables (nested with `__`) that override the file.
+- Complete commands, options and per-distro parameter values with
+  `argcomplete`.
+- Add the short options `-c/--config`, `-V/--version`, `-n/--dry-run`,
+  `-q/--quiet` and `-f/--force`.
+- Add `qm-template config` to print a commented starting-point configuration
+  to stdout; `--full` appends the per-distro default tables.
+- Allow pointing a distro at an upstream or mirror with the `base_url`
+  parameter in `[distro.<name>]`; the checksum file is fetched from the same
+  base.
 
 ### Changed
 
@@ -25,6 +39,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `[cloudinit]` section and drop the redundant `ci` prefix (`user`,
   `password`, `sshkeys`, `sshkeys_files`), since they are shared by `create`
   and `prepare`; `[create]` keeps the Proxmox-specific keys.
+- Replace the `[download.<distro>]` overrides with `[distro.<distro>]`; they
+  are no longer written into the generated default configuration and only need
+  to be added when a distro should deviate from its built-in defaults.
+- Move the automatic VM ID selection from `create.start_id`/`create.step` to
+  `vmid.start`/`vmid.step`.
+- Report unknown configuration keys with the file path, the key path and a
+  migration hint for settings that moved.
+- Stop writing the default configuration to `/etc/qm-template/config.toml` on
+  first run; the configuration file is optional and `qm-template config`
+  prints a starting point instead.
+- Validate distro parameter values against the values each distro accepts
+  instead of failing later while resolving the image URL.
+- Reject `--tag` with an error for distros that do not support it instead of
+  warning and ignoring it.
 
 ### Removed
 

@@ -25,8 +25,13 @@ uv tool install .
 
 ## 配置
 
-配置文件是可选的，默认从 `/etc/qm-template/config.toml` 加载，首次运行时会自动
-写入内置默认配置。可通过 `--config PATH` 或 `QM_TEMPLATE_CONFIG` 指定其他位置。
+配置文件是可选的，存在时默认从 `/etc/qm-template/config.toml` 加载；可通过
+`--config PATH`/`-c` 或 `QM_TEMPLATE_CONFIG` 指定其他位置。没有配置文件时所有命令
+都能正常工作。配置由 `pydantic-settings` 校验，未知的键和非法值会在报错中给出文件
+与键路径。所有设置都可以用 `QM_TEMPLATE_*` 环境变量覆盖，嵌套层级用 `__` 分隔，
+例如 `QM_TEMPLATE_DOWNLOAD__CONNECTIONS=4`；优先级为内置默认值 < 配置文件 <
+环境变量 < 命令行选项。
+
 下载的镜像默认存储在 `/var/lib/qm-template`，可由 `paths.images_dir` 覆盖，并按
 上游目录结构存放：
 
@@ -36,19 +41,60 @@ uv tool install .
 
 `download.preferred` 指定下载器优先级，`download.connections` 设置 `axel` 和
 `aria2c` 的并行连接数。默认显示下载进度，可用 `download.quiet = true` 或
-`--quiet` 关闭。`cloudinit.user`/`password` 配置 Cloud-Init 用户，
+`-q`/`--quiet` 关闭。`cloudinit.user`/`password` 配置 Cloud-Init 用户，
 `cloudinit.sshkeys` 以内联列表提供注入的 SSH 公钥，`cloudinit.sshkeys_files`
 指向公钥文件列表，两者的内容会按 SSH 指纹合并去重，且至少需要配置一个公钥。
 `create.cpu` 设置传给 `qm` 的 CPU 类型（`cputype=...`，默认 `host`，性能最好但
-无法跨 CPU 代际迁移）。`create.start_id` 和 `create.step`（默认 `9000` 和 `1`）
-控制 VM ID 的自动选择。也可以手动创建示例配置：
+无法跨 CPU 代际迁移）。`vmid.start` 和 `vmid.step`（默认 `9000` 和 `1`）控制
+VM ID 的自动选择。
+
+按发行版覆盖参数是可选的，位于 `[distro.<name>]` 下；这些覆盖不会写入生成的默认
+配置文件，只在某个发行版需要偏离内置默认值时才添加：
+
+```toml
+[distro.debian]
+release = "bookworm-backports"
+arch = "arm64"
+base_url = "https://mirror.example.org/debian-cloud"
+```
+
+`base_url` 用于把某个发行版指向上游或镜像站，镜像站必须保持上游的目录结构；校验和
+文件也从同一个 base 获取。注意上游站点普遍不对校验和文件做 GPG 签名，因此镜像站
+同时提供镜像和校验和：对真实性有要求时请使用可信镜像，或用带外方式自行校验。
+
+`qm-template distros` 会列出每个参数及其默认值和可选值，`qm-template distros
+debian` 查看单个发行版。
+
+## 生成配置文件
+
+`qm-template config` 会把带注释的默认配置打印到 stdout，重定向即可生成起始配置；
+`--full` 还会追加各发行版的默认参数表。工具不会自动写配置文件：
 
 ```shell
 install -d /etc/qm-template
-cp config.example.toml /etc/qm-template/config.toml
+qm-template config > /etc/qm-template/config.toml
+
+# 显式固定每个发行版的参数
+qm-template config --full > /etc/qm-template/config.toml
 ```
 
-命令行选项会覆盖配置文件中的默认值。
+仓库中的 `config.example.toml` 与不带参数的 `qm-template config` 输出相同。
+
+## Shell 补全
+
+补全由随 CLI 一起安装的 `argcomplete` 提供，每个 shell 启用一次即可：
+
+```shell
+# bash
+eval "$(register-python-argcomplete qm-template)"
+
+# zsh
+autoload -U bashcompinit && bashcompinit
+eval "$(register-python-argcomplete qm-template)"
+```
+
+把对应行加入 `~/.bashrc`/`~/.zshrc`。补全覆盖命令名、选项以及按发行版的参数值；
+`--release`/`--variant`/`--arch`/`--tag` 会根据命令行中指定的发行版给出候选值。
 
 ## 下载镜像
 
@@ -61,10 +107,10 @@ qm-template download ubuntu --release noble --variant minimal
 qm-template download debian --release bookworm --tag 20260907-2594
 
 # 仅打印首个可用下载器的命令（不执行）
-qm-template download --dry-run alpine
+qm-template download -n alpine
 
 # 关闭下载进度输出
-qm-template download --quiet alpine
+qm-template download -q alpine
 ```
 
 `--dry-run` 会解析镜像并 pretty print 首个可用下载器的命令，每个参数组一行，不执行下载。
@@ -95,9 +141,9 @@ qm-template create --dry-run --vm-id 9000
 ```
 
 `create` 需要 Proxmox VE 主机，并执行单条 `qm create ... --template 1` 命令；
-`--dry-run` 会 pretty print 组装好的命令而不执行。省略 `--vm-id` 时，会从 `qm list`
-（回退到 `/etc/pve/qemu-server/*.conf`）收集已占用的 ID，并使用从
-`create.start_id`（默认 `9000`）开始、以 `create.step` 递增的首个空闲 ID。如果
+`--dry-run`/`-n` 会 pretty print 组装好的命令而不执行。省略 `--vm-id` 时，会从
+`qm list`（回退到 `/etc/pve/qemu-server/*.conf`）收集已占用的 ID，并使用从
+`vmid.start`（默认 `9000`）开始、以 `vmid.step` 递增的首个空闲 ID。如果
 `qm create` 失败并留下了 VM 配置，会提示用于清理的 `qm destroy` 命令。
 
 ## 准备本地虚拟机产物
@@ -127,12 +173,27 @@ qm-template prepare --dry-run debian-13
 `.vdi` 挂为 SATA 硬盘、把 seed ISO 挂为 CD-ROM 即可。请使用
 `generic`/`genericcloud` 变体：Debian 的 `nocloud` 变体不运行 Cloud-Init。已存在的
 客户机磁盘会保留，只重建 seed ISO（转换开销大、而 seed 由 `[cloudinit]` 配置决定）；
-需要重新转换时传入 `--force`。
+需要重新转换时传入 `--force`/`-f`。
 
 ## 列出发行版
 
 ```shell
+# 列出所有发行版、参数及每个参数的可选值
 qm-template distros
+
+# 查看单个发行版
+qm-template distros debian
+```
+
+已配置的 `[distro.<name>]` 覆盖值会取代内置默认值显示：
+
+```text
+debian       Debian GNU/Linux
+  release = trixie         choices: buster, bullseye, bookworm, trixie, forky (optionally with -backports)
+  variant = genericcloud   choices: generic, genericcloud
+  arch = amd64             choices: amd64, arm64
+  tag = -                  dated build; the newest is used when omitted
+  base_url = https://cdimage.debian.org/images/cloud upstream or mirror base URL
 ```
 
 ## 开发

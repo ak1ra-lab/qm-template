@@ -40,9 +40,24 @@ PyPI.
 ## Conventions
 
 - CLI: `argparse` with `download`, `create`, `prepare` and `distros` subcommands;
-  entrypoint `qm-template`. Runtime dependencies stay empty (standard library
-  only).
-- Defaults: config `/etc/qm-template/config.toml`, images
+  entrypoint `qm-template`. Runtime dependencies are `pydantic-settings` (config
+  validation) and `argcomplete` (shell completion).
+- Short options follow common conventions and are added only for frequently used
+  flags: `-c/--config`, `-V/--version`, `-n/--dry-run`, `-q/--quiet`,
+  `-f/--force`. Everything else stays long-only and is discoverable through
+  completion.
+- Config: `Settings` models live in `config.py`; unknown keys are rejected with
+  per-key errors and migration hints. `[distro.<name>]` overrides are optional
+  and are never written into the generated default config. Environment variables
+  use `QM_TEMPLATE_*` with `__` for nesting and beat the file; CLI options beat
+  both.
+- Distro parameters are declared as `Option` schemas on each `Distro` subclass
+  (`release`/`variant`/`arch`/`tag`/`base_url` defaults and accepted values).
+  The same schema drives `merge()` validation, `qm-template distros` and
+  completion; `defaults` and `supports_tag` are derived from it. Never
+  duplicate parameter data elsewhere.
+- Defaults: config `/etc/qm-template/config.toml` (optional and never written
+  automatically; `qm-template config` prints a starting point), images
   `/var/lib/qm-template`, mirroring the upstream layout
   (`<distro>/<release>/[<tag>/]<filename>`). Dated builds are pinned where the
   upstream provides them.

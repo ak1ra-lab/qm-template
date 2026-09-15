@@ -32,10 +32,20 @@ prepares VirtualBox artifacts, with Cloud-Init support.
   or VHDX with `qemu-img` and builds a NoCloud seed ISO (user-data, meta-data
   and a DHCP network-config) with `genisoimage`, both written next to the
   source image
-- **TOML configuration**: read with `tomllib` from the standard library
-- **Standard library only**: Python >= 3.11; external commands are limited to
-  the downloader, the Proxmox VE `qm`/`pvesm` tools and `prepare`'s
-  `qemu-img`/`genisoimage`
+- **Validated TOML configuration**: settings and per-distro overrides are
+  validated with `pydantic-settings` (unknown keys are rejected with a hint),
+  optional `[distro.<name>]` overrides, and `QM_TEMPLATE_*` environment
+  variables that take precedence over the file
+- **Shell completion**: `argcomplete` completes commands, options and
+  per-distro parameter values
+- **Discoverable distro parameters**: `qm-template distros` lists every
+  parameter with its default and accepted values; `qm-template distros debian`
+  describes a single distro
+- **Mirror-friendly**: point any distro at an upstream or mirror through
+  `[distro.<name>] base_url`, including the checksum file
+- **Configuration template**: `qm-template config` prints a commented
+  starting-point configuration and `--full` adds the per-distro default tables;
+  the file is never written automatically
 
 ## Requirements
 
@@ -64,10 +74,16 @@ uv run qm-template --help
 ## Configuration
 
 The configuration file is optional and loaded from
-`/etc/qm-template/config.toml`. It is created with the built-in defaults on
-first run; use `--config PATH` or `QM_TEMPLATE_CONFIG` to point elsewhere.
-Downloaded images are stored in `/var/lib/qm-template` unless
-`paths.images_dir` overrides it, mirroring the upstream layout:
+`/etc/qm-template/config.toml` when it exists; use `--config PATH`/`-c` or
+`QM_TEMPLATE_CONFIG` to point elsewhere. All commands work without a
+configuration file. Settings are validated with `pydantic-settings`; unknown
+keys and invalid values are rejected with the file and key path in the error.
+Every setting can also be overridden with a `QM_TEMPLATE_*` environment
+variable that uses `__` for nesting, for example
+`QM_TEMPLATE_DOWNLOAD__CONNECTIONS=4`; environment variables take precedence
+over the file, and command-line options take precedence over both. Downloaded
+images are stored in `/var/lib/qm-template` unless `paths.images_dir`
+overrides it, mirroring the upstream layout:
 
 ```text
 <images_dir>/<distro>/<release>/[<tag>/]<filename>
@@ -75,20 +91,43 @@ Downloaded images are stored in `/var/lib/qm-template` unless
 
 `download.preferred` orders the downloaders and `download.connections` sets the
 number of parallel connections for `axel` and `aria2c`. Downloads show progress
-by default; set `download.quiet = true` or pass `--quiet` to hide it.
+by default; set `download.quiet = true` or pass `-q`/`--quiet` to hide it.
 `cloudinit.user`/`password` configure the Cloud-Init user, and
 `cloudinit.sshkeys`/`sshkeys_files` list inline SSH public keys and key files
 whose contents are merged and deduplicated by fingerprint; at least one key is
 required. `create.cpu` sets the CPU type passed as `cputype=...` (default
-`host`), and `create.start_id`/`create.step` drive automatic VM ID selection
-(default `9000` and `1`). To create the file manually instead:
+`host`), and `vmid.start`/`vmid.step` drive automatic VM ID selection (default
+`9000` and `1`). Optional `[distro.<name>]` overrides are not written to the
+generated file:
+
+```toml
+[distro.debian]
+release = "bookworm-backports"
+arch = "arm64"
+base_url = "https://mirror.example.org/debian-cloud"
+```
+
+`base_url` points a distro at an upstream or mirror that mirrors the expected
+directory layout; the checksum file is fetched from the same base. Since the
+upstream sites generally do not GPG-sign checksum files, a mirror serves both
+the image and its checksum; use a trusted mirror if authenticity matters.
+
+Print a starting-point configuration to stdout and redirect it; the file is
+never written automatically:
 
 ```shell
 install -d /etc/qm-template
-cp config.example.toml /etc/qm-template/config.toml
+qm-template config > /etc/qm-template/config.toml
+
+# also append the per-distro default tables
+qm-template config --full > /etc/qm-template/config.toml
 ```
 
-Command-line options override the configured defaults.
+Shell completion is provided by `argcomplete`; enable it once per shell:
+
+```shell
+eval "$(register-python-argcomplete qm-template)"   # bash; zsh needs bashcompinit
+```
 
 ## Usage
 
@@ -104,13 +143,16 @@ qm-template download ubuntu --release noble --variant minimal
 qm-template download debian --release bookworm --tag 20260907-2594
 
 # print the first available downloader's command without running it
-qm-template download --dry-run alpine
+qm-template download -n alpine
 
 # hide the downloader progress output
-qm-template download --quiet alpine
+qm-template download -q alpine
 
-# list distros and their configured defaults
+# list distros with the values each parameter accepts
 qm-template distros
+
+# print a commented starting-point configuration
+qm-template config > config.toml
 ```
 
 `--dry-run` resolves the image and pretty prints the command of the first
@@ -148,10 +190,10 @@ qm-template create --dry-run --vm-id 9000
 
 When `--vm-id` is omitted, `qm-template` collects the IDs in use from
 `qm list` (falling back to `/etc/pve/qemu-server/*.conf`) and picks the first
-free ID at or after `create.start_id` (default `9000`), advancing by
-`create.step` (default `1`); the 9000+ range keeps templates away from regular
-VMs. If `qm create` fails, an existing but incomplete VM config is reported with
-the `qm destroy` command needed to clean it up.
+free ID at or after `vmid.start` (default `9000`), advancing by `vmid.step`
+(default `1`); the 9000+ range keeps templates away from regular VMs. If
+`qm create` fails, an existing but incomplete VM config is reported with the
+`qm destroy` command needed to clean it up.
 
 The resulting command is a single `qm create` invocation, which `--dry-run`
 pretty prints as:
@@ -212,9 +254,12 @@ image. For VirtualBox, attach the `.vdi` as a SATA hard disk and the seed ISO
 as a CD-ROM. Use the `generic`/`genericcloud` image variants: Debian's
 `nocloud` variant does not run Cloud-Init. An existing guest disk is kept and
 only the seed ISO is rebuilt, since converting is expensive and the seed
-derives from the `[cloudinit]` settings; pass `--force` to convert again.
+derives from the `[cloudinit]` settings; pass `--force`/`-f` to convert again.
 
 ## Supported distros
+
+`qm-template distros` is the authoritative list, including the accepted values
+of every parameter. Defaults:
 
 | Name        | Default release | Default variant | Notes                             |
 | ----------- | --------------- | --------------- | --------------------------------- |
@@ -245,9 +290,9 @@ qm-template/
 ├── pyproject.toml
 ├── config.example.toml
 ├── src/qm_template/
-│   ├── cli.py          # argument parsing and entry point
+│   ├── cli.py          # argument parsing, completion and entry point
 │   ├── commands.py     # download / create / prepare / distros commands
-│   ├── config.py       # TOML settings and first-run config seeding
+│   ├── config.py       # pydantic-settings models and first-run config seeding
 │   ├── checksum.py     # checksum parsing and verification
 │   ├── cloudinit.py    # SSH key collection and seed user-data/meta-data
 │   ├── config.default.toml  # default configuration shipped in the wheel

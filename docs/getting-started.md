@@ -26,8 +26,15 @@ uv tool install .
 ## Configuration
 
 The configuration file is optional and loaded from
-`/etc/qm-template/config.toml`. It is created with the built-in defaults on
-first run; use `--config PATH` or `QM_TEMPLATE_CONFIG` to point elsewhere.
+`/etc/qm-template/config.toml` when it exists; use `--config PATH`/`-c` or
+`QM_TEMPLATE_CONFIG` to point elsewhere. All commands work without a
+configuration file. Settings are validated with `pydantic-settings`; unknown
+keys and invalid values are rejected with the file and key path in the error.
+Every setting can also be overridden with a `QM_TEMPLATE_*` environment
+variable that uses `__` for nesting, for example
+`QM_TEMPLATE_DOWNLOAD__CONNECTIONS=4`; environment variables take precedence
+over the file, and command-line options take precedence over both.
+
 Downloaded images are stored in `/var/lib/qm-template` unless
 `paths.images_dir` overrides it, mirroring the upstream layout:
 
@@ -37,21 +44,69 @@ Downloaded images are stored in `/var/lib/qm-template` unless
 
 `download.preferred` orders the downloaders and `download.connections` sets the
 number of parallel connections for `axel` and `aria2c`. Downloads show progress
-by default; `download.quiet = true` or `--quiet` hides it.
+by default; `download.quiet = true` or `-q`/`--quiet` hides it.
 `cloudinit.user`/`password` configure the Cloud-Init user, and
 `cloudinit.sshkeys`/`sshkeys_files` list inline SSH public keys and key files
 whose contents are merged and deduplicated by key fingerprint; at least one key
 is required. `create.cpu` sets the CPU type passed to `qm` as `cputype=...`
 (default `host`, which is fast but prevents migration across CPU generations).
-`create.start_id` and `create.step` (defaults `9000` and `1`) drive automatic
-VM ID selection. To create the file manually instead:
+`vmid.start` and `vmid.step` (defaults `9000` and `1`) drive automatic VM ID
+selection.
+
+Per-distro overrides are optional and live under `[distro.<name>]`. They are
+not written to the generated default file; add them only when a distro should
+use something other than its built-in default:
+
+```toml
+[distro.debian]
+release = "bookworm-backports"
+arch = "arm64"
+base_url = "https://mirror.example.org/debian-cloud"
+```
+
+`base_url` points a distro at an upstream or mirror that mirrors the expected
+directory layout; the checksum file is fetched from the same base. Note that
+the upstream sites generally do not GPG-sign the checksum files, so a mirror
+serves both the image and its checksum: use a trusted mirror, or verify the
+checksum out of band, when authenticity matters.
+
+`qm-template distros` shows every parameter with its default and accepted
+values, and `qm-template distros debian` describes a single distro.
+
+## Generate a configuration file
+
+`qm-template config` prints the default configuration (with comments) to
+stdout; redirect it to create a starting point. `--full` also appends the
+per-distro default tables. The file is never written automatically:
 
 ```shell
 install -d /etc/qm-template
-cp config.example.toml /etc/qm-template/config.toml
+qm-template config > /etc/qm-template/config.toml
+
+# pin every distro parameter explicitly
+qm-template config --full > /etc/qm-template/config.toml
 ```
 
-Command-line options override the configured defaults.
+`config.example.toml` in the repository is the same file as the plain
+`qm-template config` output.
+
+## Shell completion
+
+Completion is powered by `argcomplete`, which is installed with the CLI. Enable
+it once per shell:
+
+```shell
+# bash
+eval "$(register-python-argcomplete qm-template)"
+
+# zsh
+autoload -U bashcompinit && bashcompinit
+eval "$(register-python-argcomplete qm-template)"
+```
+
+Add the relevant lines to `~/.bashrc`/`~/.zshrc`. Command names, options and
+per-distro parameter values are completed; `--release`/`--variant`/`--arch`/
+`--tag` complete against the distro named on the command line.
 
 ## Download an image
 
@@ -64,10 +119,10 @@ qm-template download ubuntu --release noble --variant minimal
 qm-template download debian --release bookworm --tag 20260907-2594
 
 # print the first available downloader's command without running it
-qm-template download --dry-run alpine
+qm-template download -n alpine
 
 # hide the downloader progress output
-qm-template download --quiet alpine
+qm-template download -q alpine
 ```
 
 `--dry-run` resolves the image and pretty prints the command of the first
@@ -103,10 +158,10 @@ qm-template create --dry-run --vm-id 9000
 ```
 
 `create` requires a Proxmox VE host and runs a single
-`qm create ... --template 1` command, which `--dry-run` pretty prints without
-executing it. When `--vm-id` is omitted, the IDs in use are collected from
-`qm list` (falling back to `/etc/pve/qemu-server/*.conf`) and the first free ID
-at or after `create.start_id` (default `9000`), advancing by `create.step`, is
+`qm create ... --template 1` command, which `--dry-run`/`-n` pretty prints
+without executing it. When `--vm-id` is omitted, the IDs in use are collected
+from `qm list` (falling back to `/etc/pve/qemu-server/*.conf`) and the first
+free ID at or after `vmid.start` (default `9000`), advancing by `vmid.step`, is
 used. If `qm create` fails after leaving a VM config behind, the `qm destroy`
 command needed to clean it up is reported.
 
@@ -141,12 +196,28 @@ the `.vdi` as a SATA hard disk and the seed ISO as a CD-ROM. Use the
 `generic`/`genericcloud` image variants: Debian's `nocloud` variant does not
 run Cloud-Init. An existing guest disk is kept and only the seed ISO is
 rebuilt, since converting is expensive and the seed derives from the
-`[cloudinit]` settings; pass `--force` to convert again.
+`[cloudinit]` settings; pass `--force`/`-f` to convert again.
 
 ## List distros
 
 ```shell
+# every distro, its parameters and the values each one accepts
 qm-template distros
+
+# one distro in detail
+qm-template distros debian
+```
+
+Configured `[distro.<name>]` overrides are shown instead of the built-in
+defaults:
+
+```text
+debian       Debian GNU/Linux
+  release = trixie         choices: buster, bullseye, bookworm, trixie, forky (optionally with -backports)
+  variant = genericcloud   choices: generic, genericcloud
+  arch = amd64             choices: amd64, arm64
+  tag = -                  dated build; the newest is used when omitted
+  base_url = https://cdimage.debian.org/images/cloud upstream or mirror base URL
 ```
 
 ## Development
