@@ -28,6 +28,26 @@ def test_version_flag(capsys: pytest.CaptureFixture[str]) -> None:
     assert capsys.readouterr().out.startswith("qm-template ")
 
 
+def test_short_version_flag(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        build_parser().parse_args(["-V"])
+    assert excinfo.value.code == 0
+    assert capsys.readouterr().out.startswith("qm-template ")
+
+
+def test_short_options_parse() -> None:
+    args = build_parser().parse_args(["download", "-n", "-q", "alpine"])
+    assert args.dry_run is True
+    assert args.quiet is True
+    args = build_parser().parse_args(["create", "-n"])
+    assert args.dry_run is True
+    args = build_parser().parse_args(["prepare", "-n", "-f"])
+    assert args.dry_run is True
+    assert args.force is True
+    args = build_parser().parse_args(["distros", "-c", "custom.toml"])
+    assert args.config == "custom.toml"
+
+
 def test_keyboard_interrupt_returns_130(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

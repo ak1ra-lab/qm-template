@@ -1,8 +1,27 @@
+import argparse
+
 import pytest
 
-from qm_template.commands import _download_verified
+from qm_template.commands import (
+    _complete_distro_names,
+    _complete_distro_option,
+    _download_verified,
+)
 from qm_template.distros import RemoteImage
 from qm_template.errors import QmTemplateError
+
+
+def test_complete_distro_names():
+    assert _complete_distro_names("ub") == ["ubuntu"]
+    assert "debian" in _complete_distro_names("")
+
+
+def test_complete_distro_option_uses_parsed_distro():
+    complete = _complete_distro_option("release")
+    namespace = argparse.Namespace(distro="debian")
+    assert "bookworm-backports" in complete("bookworm", parsed_args=namespace)
+    assert complete("x", parsed_args=argparse.Namespace()) == []
+    assert complete("x", parsed_args=argparse.Namespace(distro="rocky")) == []
 
 
 def remote_image() -> RemoteImage:

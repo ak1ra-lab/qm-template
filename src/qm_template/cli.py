@@ -1,6 +1,9 @@
+# PYTHON_ARGCOMPLETE_OK
 import argparse
 import sys
 from collections.abc import Sequence
+
+import argcomplete
 
 from qm_template import PROGRAM, __version__
 from qm_template.commands import COMMANDS
@@ -12,6 +15,7 @@ from qm_template.log import log, setup_logging
 def build_parser() -> argparse.ArgumentParser:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument(
+        "-c",
         "--config",
         metavar="PATH",
         default=argparse.SUPPRESS,
@@ -26,7 +30,7 @@ def build_parser() -> argparse.ArgumentParser:
         parents=[common],
     )
     parser.add_argument(
-        "--version", action="version", version=f"%(prog)s {__version__}"
+        "-V", "--version", action="version", version=f"%(prog)s {__version__}"
     )
     subparsers = parser.add_subparsers(dest="command", metavar="COMMAND", required=True)
     for command in COMMANDS:
@@ -43,7 +47,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    argcomplete.autocomplete(parser)
+    args = parser.parse_args(argv)
     setup_logging()
     try:
         config_path, explicit = resolve_config_path(getattr(args, "config", None))

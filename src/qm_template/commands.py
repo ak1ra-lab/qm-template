@@ -3,6 +3,7 @@ import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import Any
 
 from qm_template import PROGRAM
 from qm_template.checksum import fetch_checksum, save_checksum, verify_checksum
@@ -47,23 +48,54 @@ from qm_template.pve import (
 from qm_template.shell import pretty
 
 
+def _set_completer(
+    action: argparse.Action, completer: Callable[..., list[str]]
+) -> None:
+    setattr(action, "completer", completer)
+
+
+def _complete_distro_names(prefix: str = "", **_: Any) -> list[str]:
+    return [name for name in DISTROS if name.startswith(prefix)]
+
+
+def _complete_distro_option(param: str) -> Callable[..., list[str]]:
+    def complete(
+        prefix: str = "", parsed_args: argparse.Namespace | None = None, **_: Any
+    ) -> list[str]:
+        name = getattr(parsed_args, "distro", None)
+        distro = DISTROS.get(name) if isinstance(name, str) else None
+        if distro is None:
+            return []
+        option = distro.options.get(param)
+        return [] if option is None else option.completions(prefix)
+
+    return complete
+
+
 def add_download_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
+    distro_argument = parser.add_argument(
         "distro",
         nargs="?",
         help="distro name (default from configuration)",
     )
-    parser.add_argument("--release", help="distro release or codename")
-    parser.add_argument("--variant", help="image variant")
-    parser.add_argument("--arch", help="image architecture")
-    parser.add_argument("--tag", help="specific image tag/version")
+    _set_completer(distro_argument, _complete_distro_names)
+    for name, help_text in (
+        ("release", "distro release or codename"),
+        ("variant", "image variant"),
+        ("arch", "image architecture"),
+        ("tag", "specific image tag/version"),
+    ):
+        action = parser.add_argument(f"--{name}", help=help_text)
+        _set_completer(action, _complete_distro_option(name))
     parser.add_argument(
+        "-q",
         "--quiet",
         action=argparse.BooleanOptionalAction,
         default=None,
         help="hide downloader progress output",
     )
     parser.add_argument(
+        "-n",
         "--dry-run",
         action="store_true",
         help="print the download command and exit",
@@ -145,6 +177,7 @@ def add_create_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--cpu", help="CPU type passed as cputype (default: host)")
     parser.add_argument("--bridge", help="network bridge")
     parser.add_argument(
+        "-n",
         "--dry-run",
         action="store_true",
         help="print the assembled qm command and exit",
@@ -228,11 +261,13 @@ def add_prepare_arguments(parser: argparse.ArgumentParser) -> None:
         help=f"guest disk format (default: {DEFAULT_FORMAT})",
     )
     parser.add_argument(
+        "-f",
         "--force",
         action="store_true",
         help="reconvert the guest disk even if it already exists",
     )
     parser.add_argument(
+        "-n",
         "--dry-run",
         action="store_true",
         help="print the commands and exit",
