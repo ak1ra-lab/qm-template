@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-09-15
+
+### Added
+
+- Add `create.firmware` and `--firmware` (`auto`, `bios` or `uefi`) to
+  `qm-template create`; `auto` uses UEFI for images whose filename contains
+  `uefi` (for example Fedora's `UEFI-UKI` variant) and creates them with
+  `--bios ovmf` and an EFI disk, while BIOS templates are unchanged.
+- Add `cloudinit.shell` to set the login shell of the user created by the
+  `prepare` seed; the default stays `/bin/bash` and an empty value keeps the
+  image default, so Alpine images without bash can be prepared too.
+
+### Removed
+
+- Remove the `basic` variant from the Arch Linux parameters; only `cloudimg`
+  ships Cloud-Init.
+
+### Fixed
+
+- Fix Alpine Linux `aarch64` resolution: upstream provides only UEFI images
+  for `aarch64`, so the resolver now selects `bios` for `x86_64` and `uefi`
+  for `aarch64` instead of always requiring `bios`.
+
 ## [0.3.0] - 2026-09-15
 
 ### Added
