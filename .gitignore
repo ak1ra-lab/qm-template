@@ -351,5 +351,6 @@ examples/*
 .agents/sessions/*
 
 # Local qm-template configuration (keep the example file)
-qm-template.*.toml
-!qm-template.example.toml
+config.toml
+config.*.toml
+!config.example.toml

@@ -84,7 +84,7 @@ required. `create.cpu` sets the CPU type passed as `cputype=...` (default
 
 ```shell
 install -d /etc/qm-template
-cp qm-template.example.toml /etc/qm-template/config.toml
+cp config.example.toml /etc/qm-template/config.toml
 ```
 
 Command-line options override the configured defaults.
@@ -240,7 +240,7 @@ Project layout:
 ```
 qm-template/
 ├── pyproject.toml
-├── qm-template.example.toml
+├── config.example.toml
 ├── src/qm_template/
 │   ├── cli.py          # argument parsing and entry point
 │   ├── commands.py     # download / create / prepare / distros commands

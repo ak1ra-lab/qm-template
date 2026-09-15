@@ -45,7 +45,7 @@ uv tool install .
 
 ```shell
 install -d /etc/qm-template
-cp qm-template.example.toml /etc/qm-template/config.toml
+cp config.example.toml /etc/qm-template/config.toml
 ```
 
 命令行选项会覆盖配置文件中的默认值。

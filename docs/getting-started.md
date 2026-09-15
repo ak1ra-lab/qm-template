@@ -48,7 +48,7 @@ VM ID selection. To create the file manually instead:
 
 ```shell
 install -d /etc/qm-template
-cp qm-template.example.toml /etc/qm-template/config.toml
+cp config.example.toml /etc/qm-template/config.toml
 ```
 
 Command-line options override the configured defaults.
