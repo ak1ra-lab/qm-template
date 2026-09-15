@@ -11,11 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add `qm-template prepare` to build local VM artifacts from a downloaded
   image: `qemu-img` converts it to a guest disk (`--format vdi` (default),
-  `vmdk`, `qcow2`, `raw` or `vhdx`) and a NoCloud `user-data`/`meta-data` pair
-  built from the Cloud-Init settings is packed into a `CIDATA`-labelled seed
+  `vmdk`, `qcow2`, `raw` or `vhdx`) and a NoCloud seed with `user-data`,
+  `meta-data` and a DHCP `network-config` is packed into a `CIDATA`-labelled
   ISO with `genisoimage`. Both artifacts are written next to the source image
   with the same stem (`<image>.qcow2` becomes `<image>.vdi` and
-  `<image>.iso`); `--vm-name`, `--force` and `--dry-run` are supported.
+  `<image>.iso`); an existing guest disk is kept unless `--force` is passed,
+  while the seed ISO is rebuilt on every run. `--vm-name` and `--dry-run` are
+  also supported.
 
 ### Changed
 

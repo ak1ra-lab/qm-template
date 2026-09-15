@@ -1,6 +1,12 @@
 import pytest
 
-from qm_template.cloudinit import collect_ssh_keys, meta_data, sshkeys_file, user_data
+from qm_template.cloudinit import (
+    collect_ssh_keys,
+    meta_data,
+    network_config,
+    sshkeys_file,
+    user_data,
+)
 from qm_template.config import CloudInitSettings
 from qm_template.errors import QmTemplateError
 
@@ -82,3 +88,11 @@ def test_meta_data_sets_instance_id_and_hostname():
     document = meta_data("debian-13")
     assert 'instance-id: "iid-debian-13"' in document
     assert 'local-hostname: "debian-13"' in document
+
+
+def test_network_config_dhcps_en_and_eth_interfaces():
+    document = network_config()
+    assert document.startswith("version: 2\n")
+    assert 'name: "en*"' in document
+    assert 'name: "eth*"' in document
+    assert document.count("dhcp4: true") == 2

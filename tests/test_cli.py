@@ -399,7 +399,8 @@ def test_prepare_dry_run_prints_commands(
     assert str(image.with_suffix(".vdi")) in printed
     assert "genisoimage \\\n" in printed
     assert str(image.with_suffix(".iso")) in printed
-    assert "user-data" in printed
+    for name in ("user-data", "meta-data", "network-config"):
+        assert name in printed
     assert "VBoxManage" not in printed
     assert not image.with_suffix(".vdi").exists()
     assert not image.with_suffix(".iso").exists()
@@ -467,8 +468,9 @@ def test_prepare_runs_tools_with_staged_seed_files(
     def fake_run(argv):
         calls.append(argv)
         if argv[0] == "genisoimage":
-            staged["user-data"] = Path(argv[-2]).read_text()
-            staged["meta-data"] = Path(argv[-1]).read_text()
+            staged["user-data"] = Path(argv[-3]).read_text()
+            staged["meta-data"] = Path(argv[-2]).read_text()
+            staged["network-config"] = Path(argv[-1]).read_text()
         return SimpleNamespace(returncode=0)
 
     monkeypatch.setattr(
@@ -481,10 +483,11 @@ def test_prepare_runs_tools_with_staged_seed_files(
     assert str(image.with_suffix(".iso")) in calls[1]
     assert "ssh-ed25519 AAAA" in staged["user-data"]
     assert "instance-id" in staged["meta-data"]
+    assert staged["network-config"].startswith("version: 2\n")
     assert capsys.readouterr().out == ""
 
 
-def test_prepare_refuses_to_overwrite_artifacts(
+def test_prepare_keeps_an_existing_disk_and_rebuilds_the_seed(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
@@ -493,19 +496,70 @@ def test_prepare_refuses_to_overwrite_artifacts(
     images.mkdir()
     image = images / "debian-13-genericcloud-amd64.qcow2"
     image.write_bytes(b"")
-    vdi = image.with_suffix(".vdi")
-    vdi.write_bytes(b"old")
+    disk = image.with_suffix(".vdi")
+    disk.write_bytes(b"old disk")
+    seed = image.with_suffix(".iso")
+    seed.write_bytes(b"old seed")
     config = write_config(
         tmp_path, images, cloudinit='sshkeys = ["ssh-ed25519 AAAA"]\n'
     )
+    calls: list[list[str]] = []
+
+    def fake_run(argv):
+        calls.append(argv)
+        return SimpleNamespace(returncode=0)
+
     monkeypatch.setattr(
         "qm_template.prepare.shutil.which", lambda name: f"/usr/bin/{name}"
     )
-    monkeypatch.setattr(
-        "qm_template.prepare.subprocess.run",
-        lambda _argv: SimpleNamespace(returncode=0),
+    monkeypatch.setattr("qm_template.prepare.subprocess.run", fake_run)
+    assert main(["prepare", "--config", str(config)]) == 0
+    assert [argv[0] for argv in calls] == ["genisoimage"]
+    assert disk.read_bytes() == b"old disk"
+    assert not seed.exists()
+    assert "Keeping existing" in capsys.readouterr().err
+
+
+def test_prepare_force_reconverts_the_disk(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    images = tmp_path / "images"
+    images.mkdir()
+    image = images / "debian-13-genericcloud-amd64.qcow2"
+    image.write_bytes(b"")
+    disk = image.with_suffix(".vdi")
+    disk.write_bytes(b"old disk")
+    config = write_config(
+        tmp_path, images, cloudinit='sshkeys = ["ssh-ed25519 AAAA"]\n'
     )
-    assert main(["prepare", "--config", str(config)]) == 1
-    assert "already exists" in capsys.readouterr().err
+    calls: list[list[str]] = []
+
+    def fake_run(argv):
+        calls.append(argv)
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(
+        "qm_template.prepare.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+    monkeypatch.setattr("qm_template.prepare.subprocess.run", fake_run)
     assert main(["prepare", "--force", "--config", str(config)]) == 0
-    assert not vdi.exists()
+    assert [argv[0] for argv in calls] == ["qemu-img", "genisoimage"]
+    assert not disk.exists()
+
+
+def test_prepare_dry_run_skips_conversion_when_the_disk_exists(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    images = tmp_path / "images"
+    images.mkdir()
+    image = images / "debian-13-genericcloud-amd64.qcow2"
+    image.write_bytes(b"")
+    image.with_suffix(".vdi").write_bytes(b"")
+    config = write_config(
+        tmp_path, images, cloudinit='sshkeys = ["ssh-ed25519 AAAA"]\n'
+    )
+    assert main(["prepare", "--dry-run", "--config", str(config)]) == 0
+    printed = capsys.readouterr().out
+    assert "qemu-img" not in printed
+    assert "genisoimage" in printed

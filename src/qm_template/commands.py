@@ -6,7 +6,12 @@ from pathlib import Path
 
 from qm_template import PROGRAM
 from qm_template.checksum import fetch_checksum, save_checksum, verify_checksum
-from qm_template.cloudinit import collect_ssh_keys, meta_data, sshkeys_file, user_data
+from qm_template.cloudinit import (
+    meta_data,
+    network_config,
+    sshkeys_file,
+    user_data,
+)
 from qm_template.config import Settings
 from qm_template.distros import DISTROS, RemoteImage
 from qm_template.download import (
@@ -225,7 +230,7 @@ def add_prepare_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--force",
         action="store_true",
-        help="overwrite existing artifacts",
+        help="reconvert the guest disk even if it already exists",
     )
     parser.add_argument(
         "--dry-run",
@@ -244,10 +249,6 @@ def run_prepare(args: argparse.Namespace, settings: Settings) -> None:
 
     vm_name = args.vm_name or default_vm_name(image)
     cloudinit = settings.cloudinit
-    if not collect_ssh_keys(cloudinit):
-        raise QmTemplateError(
-            "no SSH keys configured; set cloudinit.sshkeys or cloudinit.sshkeys_files"
-        )
     disk = image.with_suffix(DISK_FORMATS[args.format])
     if disk == image:
         raise QmTemplateError(
@@ -255,27 +256,35 @@ def run_prepare(args: argparse.Namespace, settings: Settings) -> None:
             "choose a different format"
         )
     seed = image.with_suffix(".iso")
+    seed_files = {
+        "user-data": user_data(cloudinit, vm_name),
+        "meta-data": meta_data(vm_name),
+        "network-config": network_config(),
+    }
     convert = convert_command(image, disk, args.format)
+    convert_needed = args.force or not disk.exists()
     if args.dry_run:
-        print(pretty(convert))
-        print(pretty(seed_iso_command(Path("user-data"), Path("meta-data"), seed)))
+        if convert_needed:
+            print(pretty(convert))
+        print(pretty(seed_iso_command(seed, [Path(name) for name in seed_files])))
         return
 
-    require_tool(QEMU_IMG, package="qemu-utils")
     require_tool(GENISOIMAGE, package="genisoimage")
-    for path in (disk, seed):
-        if path.exists() and not args.force:
-            raise QmTemplateError(f"{path} already exists (pass --force to overwrite)")
-        path.unlink(missing_ok=True)
+    if convert_needed:
+        require_tool(QEMU_IMG, package="qemu-utils")
+        disk.unlink(missing_ok=True)
+    seed.unlink(missing_ok=True)
     with tempfile.TemporaryDirectory(prefix=f"{PROGRAM}-seed-") as staging:
         staged = Path(staging)
-        (staged / "user-data").write_text(
-            user_data(cloudinit, vm_name), encoding="utf-8"
-        )
-        (staged / "meta-data").write_text(meta_data(vm_name), encoding="utf-8")
-        run_tool(convert)
-        run_tool(seed_iso_command(staged / "user-data", staged / "meta-data", seed))
-    log.info("Wrote %s and %s", disk, seed)
+        for name, content in seed_files.items():
+            (staged / name).write_text(content, encoding="utf-8")
+        if convert_needed:
+            run_tool(convert)
+            log.info("Wrote %s", disk)
+        else:
+            log.info("Keeping existing %s", disk)
+        run_tool(seed_iso_command(seed, [staged / name for name in seed_files]))
+    log.info("Wrote %s", seed)
 
 
 def add_distros_arguments(parser: argparse.ArgumentParser) -> None:

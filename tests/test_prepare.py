@@ -29,16 +29,17 @@ def test_disk_formats_map_to_distinct_suffixes():
 
 
 def test_seed_iso_command_labels_cidata(tmp_path):
-    argv = flatten(
-        seed_iso_command(
-            tmp_path / "user-data", tmp_path / "meta-data", tmp_path / "seed.iso"
-        )
-    )
+    sources = [
+        tmp_path / "user-data",
+        tmp_path / "meta-data",
+        tmp_path / "network-config",
+    ]
+    argv = flatten(seed_iso_command(tmp_path / "seed.iso", sources))
     assert argv[0] == "genisoimage"
     assert ["-volid", "cidata"] == argv[argv.index("-volid") :][:2]
-    assert str(tmp_path / "user-data") in argv
-    assert str(tmp_path / "meta-data") in argv
     assert str(tmp_path / "seed.iso") in argv
+    for source in sources:
+        assert str(source) in argv
 
 
 def test_require_tool_raises_when_missing(monkeypatch):

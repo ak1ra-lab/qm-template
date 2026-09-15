@@ -103,9 +103,10 @@ qm-template create --dry-run --vm-id 9000
 ## 准备本地虚拟机产物
 
 多数 hypervisor 无法直接启动 `.qcow2`，需要先转换磁盘格式。与 hypervisor 无关的
-`prepare` 命令会选择已下载镜像，用 `qemu-img` 转换成客户机磁盘，并按 `[cloudinit]`
-配置生成 NoCloud 的 `user-data`/`meta-data`，再用 `genisoimage` 打包成卷标为
-`CIDATA` 的 seed ISO。两个产物与源镜像同目录存放，仅后缀不同：
+`prepare` 命令会选择已下载镜像，用 `qemu-img` 转换成客户机磁盘，再用 `genisoimage`
+把 NoCloud seed 打包成卷标为 `CIDATA` 的 ISO：按 `[cloudinit]` 配置生成的
+`user-data`/`meta-data`，以及一份 DHCP `network-config`（Debian cloud image 不会
+自动生成网络配置，缺了它网卡不会被配置）。两个产物与源镜像同目录存放，仅后缀不同：
 
 ```shell
 # debian-13.qcow2 -> debian-13.vdi + debian-13.iso
@@ -124,8 +125,9 @@ qm-template prepare --dry-run debian-13
 支持的格式为 `vdi`（默认）、`vmdk`、`qcow2`、`raw` 和 `vhdx`，后缀随格式变化。
 源镜像是 `.qcow2` 时选择 `qcow2` 会被拒绝，因为会覆盖源镜像。VirtualBox 中把
 `.vdi` 挂为 SATA 硬盘、把 seed ISO 挂为 CD-ROM 即可。请使用
-`generic`/`genericcloud` 变体：Debian 的 `nocloud` 变体不运行 Cloud-Init。除非传入
-`--force`，已存在的产物不会被覆盖。
+`generic`/`genericcloud` 变体：Debian 的 `nocloud` 变体不运行 Cloud-Init。已存在的
+客户机磁盘会保留，只重建 seed ISO（转换开销大、而 seed 由 `[cloudinit]` 配置决定）；
+需要重新转换时传入 `--force`。
 
 ## 列出发行版
 

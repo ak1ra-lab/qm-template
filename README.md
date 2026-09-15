@@ -29,8 +29,9 @@ prepares VirtualBox artifacts, with Cloud-Init support.
 - **Configurable CPU type**: `create.cpu`/`--cpu` overrides the default
   `cputype=host` when migration across CPU generations matters
 - **Local VM artifacts**: `prepare` converts an image to VDI, VMDK, QCOW2, raw
-  or VHDX with `qemu-img` and builds a NoCloud seed ISO with `genisoimage`,
-  both written next to the source image
+  or VHDX with `qemu-img` and builds a NoCloud seed ISO (user-data, meta-data
+  and a DHCP network-config) with `genisoimage`, both written next to the
+  source image
 - **TOML configuration**: read with `tomllib` from the standard library
 - **Standard library only**: Python >= 3.11; external commands are limited to
   the downloader, the Proxmox VE `qm`/`pvesm` tools and `prepare`'s
@@ -184,10 +185,11 @@ qm create 9000 \
 
 Most hypervisors cannot boot `.qcow2` directly, so guest disks have to be
 converted. The hypervisor-agnostic `prepare` command selects a downloaded
-image, converts it to a guest disk with `qemu-img` and packs a NoCloud
-`user-data`/`meta-data` pair built from the `[cloudinit]` settings into a
-`CIDATA`-labelled seed ISO with `genisoimage`. Both artifacts are written next
-to the source image and only differ in suffix:
+image, converts it to a guest disk with `qemu-img` and packs a NoCloud seed
+into a `CIDATA`-labelled ISO with `genisoimage`: `user-data`/`meta-data` built
+from the `[cloudinit]` settings plus a DHCP `network-config` (needed because
+Debian cloud images do not fall back to a generated network configuration).
+Both artifacts are written next to the source image and only differ in suffix:
 
 ```shell
 # debian-13.qcow2 -> debian-13.vdi + debian-13.iso
@@ -208,8 +210,9 @@ extension follows the format (`--format vdi` writes `<image>.vdi`). Choosing
 `qcow2` for a `.qcow2` source is rejected because it would overwrite the source
 image. For VirtualBox, attach the `.vdi` as a SATA hard disk and the seed ISO
 as a CD-ROM. Use the `generic`/`genericcloud` image variants: Debian's
-`nocloud` variant does not run Cloud-Init. Existing artifacts are never
-overwritten unless `--force` is passed.
+`nocloud` variant does not run Cloud-Init. An existing guest disk is kept and
+only the seed ISO is rebuilt, since converting is expensive and the seed
+derives from the `[cloudinit]` settings; pass `--force` to convert again.
 
 ## Supported distros
 

@@ -106,3 +106,25 @@ def meta_data(vm_name: str) -> str:
         f"instance-id: {_yaml_string(f'iid-{vm_name}')}\n"
         f"local-hostname: {_yaml_string(vm_name)}\n"
     )
+
+
+def network_config() -> str:
+    """Render a version 2 network-config that DHCPs the first Ethernet NIC.
+
+    Debian cloud images do not fall back to a generated network
+    configuration, so without this file no netplan config is written and no
+    interface is configured. The name globs mirror cloud-init's own known-good
+    snapd configuration.
+    """
+    return (
+        "version: 2\n"
+        "ethernets:\n"
+        "  all-en:\n"
+        "    match:\n"
+        '      name: "en*"\n'
+        "    dhcp4: true\n"
+        "  all-eth:\n"
+        "    match:\n"
+        '      name: "eth*"\n'
+        "    dhcp4: true\n"
+    )

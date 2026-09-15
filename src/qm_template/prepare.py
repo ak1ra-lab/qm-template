@@ -1,6 +1,7 @@
 import shlex
 import shutil
 import subprocess
+from collections.abc import Sequence
 from pathlib import Path
 
 from qm_template.errors import QmTemplateError
@@ -31,17 +32,14 @@ def convert_command(image: Path, destination: Path, format: str) -> CommandGroup
     return [[QEMU_IMG], ["convert"], ["-O", format], [str(image)], [str(destination)]]
 
 
-def seed_iso_command(
-    user_data: Path, meta_data: Path, destination: Path
-) -> CommandGroups:
+def seed_iso_command(destination: Path, sources: Sequence[Path]) -> CommandGroups:
     return [
         [GENISOIMAGE],
         ["-output", str(destination)],
         ["-volid", SEED_LABEL],
         ["-joliet"],
         ["-rock"],
-        [str(user_data)],
-        [str(meta_data)],
+        *([str(source)] for source in sources),
     ]
 
 
