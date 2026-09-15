@@ -22,53 +22,13 @@ quiet = false
 # Distro used when `qm-template download` is called without a name.
 default_distro = "debian"
 
-# Per-distro overrides for `qm-template download`. Any table can be removed to
-# fall back to the built-in defaults shown by `qm-template distros`.
-
-[download.debian]
-release = "trixie"       # codename, optionally with -backports
-variant = "genericcloud" # genericcloud, generic
-arch = "amd64"           # amd64, arm64
-
-[download.ubuntu]
-release = "resolute"     # codename, e.g. noble, jammy
-variant = "server"       # server, minimal
-arch = "amd64"
-
-[download.rocky]
-release = "10"
-variant = "GenericCloud" # GenericCloud, GenericCloud-LVM
-arch = "x86_64"
-
-[download.almalinux]
-release = "10"
-variant = "GenericCloud" # GenericCloud, GenericCloud-ext4
-arch = "x86_64"
-
-[download.fedora]
-release = "44"
-variant = "Generic"      # Generic, UEFI-UKI
-arch = "x86_64"
-
-[download.centos]
-release = "10"
-variant = "GenericCloud"
-arch = "x86_64"
-
-[download.alpine]
-release = "3.24"
-variant = "generic"      # generic, nocloud
-arch = "x86_64"
-
-[download.opensuse]
-release = "tumbleweed"   # tumbleweed or a Leap version, e.g. "15.6"
-variant = "Minimal"
-arch = "x86_64"
-
-[download.archlinux]
-release = "latest"
-variant = "cloudimg"     # cloudimg, basic
-arch = "x86_64"
+# Optional per-distro overrides such as [distro.debian]. `qm-template distros`
+# lists every parameter with its default and accepted values; command-line
+# options override these settings. For example:
+#
+# [distro.debian]
+# release = "bookworm-backports"
+# base_url = "https://mirror.example.org/debian-cloud"
 
 [create]
 # Proxmox storage for the imported disk and the Cloud-Init drive.
@@ -80,10 +40,11 @@ memory = 1024
 cpu = "host"
 bridge = "vmbr0"
 
-# When --vm-id is omitted, the first free VM ID at or after start_id (scanning
+[vmid]
+# When --vm-id is omitted, the first free VM ID at or after start (scanning
 # upward by step) is used. The 9000+ range keeps templates away from regular
-# VMs. start_id must be at least 100.
-start_id = 9000
+# VMs. start must be at least 100.
+start = 9000
 step = 1
 
 [cloudinit]

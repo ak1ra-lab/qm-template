@@ -1,4 +1,5 @@
 import pytest
+from pydantic import ValidationError
 
 from qm_template.cloudinit import (
     collect_ssh_keys,
@@ -35,9 +36,9 @@ def test_collect_ssh_keys_without_inline_uses_file(tmp_path):
     assert collect_ssh_keys(settings) == ("ssh-ed25519 CCCC",)
 
 
-def test_collect_ssh_keys_rejects_invalid_inline_entry():
-    with pytest.raises(QmTemplateError):
-        collect_ssh_keys(CloudInitSettings(sshkeys=("not-a-key",)))
+def test_cloudinit_settings_reject_invalid_inline_entry():
+    with pytest.raises(ValidationError):
+        CloudInitSettings(sshkeys=("not-a-key",))
 
 
 def test_sshkeys_file_writes_and_removes_temporary_file(tmp_path):

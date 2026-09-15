@@ -1,7 +1,7 @@
 import argparse
 import tempfile
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -13,7 +13,7 @@ from qm_template.cloudinit import (
     sshkeys_file,
     user_data,
 )
-from qm_template.config import Settings
+from qm_template.config import CreateSettings, Settings
 from qm_template.distros import DISTROS, RemoteImage
 from qm_template.download import (
     Downloader,
@@ -126,16 +126,18 @@ def run_download(args: argparse.Namespace, settings: Settings) -> None:
         raise QmTemplateError(
             f"unknown distro {name!r} (run `{PROGRAM} distros` for a list)"
         )
+    if args.tag and not distro.supports_tag:
+        raise QmTemplateError(
+            f"{distro.name} does not support --tag "
+            f"(run `{PROGRAM} distros {distro.name}` for the supported options)"
+        )
     overrides = {
         "release": args.release,
         "variant": args.variant,
         "arch": args.arch,
         "tag": args.tag,
     }
-    if args.tag and not distro.supports_tag:
-        log.warning("%s does not support --tag, ignoring it", distro.name)
-        overrides["tag"] = None
-    params = distro.merge(settings.download.defaults.get(distro.name, {}), overrides)
+    params = distro.merge(settings.distro_overrides(distro.name), overrides)
     image = distro.resolve(params)
     log.info("Image: %s", image.local_path)
     log.debug("URL: %s", image.url)
@@ -185,20 +187,13 @@ def add_create_arguments(parser: argparse.ArgumentParser) -> None:
 
 
 def run_create(args: argparse.Namespace, settings: Settings) -> None:
-    create = replace(
-        settings.create,
-        storage=(args.storage if args.storage is not None else settings.create.storage),
+    create = CreateSettings(
+        storage=args.storage if args.storage is not None else settings.create.storage,
         cores=args.cores if args.cores is not None else settings.create.cores,
         memory=args.memory if args.memory is not None else settings.create.memory,
         cpu=args.cpu if args.cpu is not None else settings.create.cpu,
         bridge=args.bridge if args.bridge is not None else settings.create.bridge,
     )
-    if create.cores < 1:
-        raise QmTemplateError("cores must be a positive integer")
-    if create.memory < 1:
-        raise QmTemplateError("memory must be a positive integer")
-    if create.start_id < MIN_VM_ID:
-        raise QmTemplateError(f"start ID must be at least {MIN_VM_ID}")
 
     images = find_images(settings.images_dir, args.pattern)
     if len(images) == 1:
@@ -215,7 +210,7 @@ def run_create(args: argparse.Namespace, settings: Settings) -> None:
             raise QmTemplateError(f"VM ID {args.vm_id} is already in use")
         vm_id = args.vm_id
     else:
-        vm_id = next_vm_id(used_vm_ids(), create.start_id, create.step)
+        vm_id = next_vm_id(used_vm_ids(), settings.vmid.start, settings.vmid.step)
         log.info("Selected free VM ID: %d", vm_id)
     log.info("Creating VM %d (%s)", vm_id, vm_name)
     log.debug(
@@ -323,14 +318,32 @@ def run_prepare(args: argparse.Namespace, settings: Settings) -> None:
 
 
 def add_distros_arguments(parser: argparse.ArgumentParser) -> None:
-    pass
+    action = parser.add_argument(
+        "distro", nargs="?", help="distro to describe (default: all)"
+    )
+    _set_completer(action, _complete_distro_names)
+
+
+def _describe_option(value: str, detail: str) -> str:
+    rendered = f"  {value:<24} {detail}".rstrip()
+    return rendered
 
 
 def run_distros(args: argparse.Namespace, settings: Settings) -> None:
-    for distro in DISTROS.values():
-        params = distro.merge(settings.download.defaults.get(distro.name, {}), {})
-        rendered = " ".join(f"{key}={value}" for key, value in sorted(params.items()))
-        print(f"{distro.name:<12} {distro.description:<26} {rendered}")
+    names = [args.distro] if args.distro else list(DISTROS)
+    for index, name in enumerate(names):
+        distro = DISTROS.get(name)
+        if distro is None:
+            raise QmTemplateError(
+                f"unknown distro {name!r} (run `{PROGRAM} distros` for a list)"
+            )
+        if index:
+            print()
+        print(f"{distro.name:<12} {distro.description}")
+        overrides = settings.distro_overrides(distro.name)
+        for key, option in distro.options.items():
+            value = overrides.get(key) or option.default or "-"
+            print(_describe_option(f"{key} = {value}", option.describe()))
 
 
 @dataclass(frozen=True)
@@ -375,6 +388,6 @@ COMMANDS: tuple[Command, ...] = (
         help="list supported distros",
         add_arguments=add_distros_arguments,
         run=run_distros,
-        description="List supported distros with their configured defaults.",
+        description="List supported distros with the values each option accepts.",
     ),
 )

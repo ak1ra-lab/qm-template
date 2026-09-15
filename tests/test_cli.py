@@ -11,12 +11,16 @@ from qm_template.errors import QmTemplateError
 
 
 def write_config(
-    tmp_path: Path, images_dir: Path, create: str = "", cloudinit: str = ""
+    tmp_path: Path,
+    images_dir: Path,
+    create: str = "",
+    cloudinit: str = "",
+    vmid: str = "",
 ) -> Path:
     config = tmp_path / "config.toml"
     config.write_text(
         f'[paths]\nimages_dir = "{images_dir}"\n'
-        f"[create]\n{create}\n[cloudinit]\n{cloudinit}",
+        f"[create]\n{create}\n[cloudinit]\n{cloudinit}\n[vmid]\n{vmid}",
     )
     return config
 
@@ -26,26 +30,6 @@ def test_version_flag(capsys: pytest.CaptureFixture[str]) -> None:
         build_parser().parse_args(["--version"])
     assert excinfo.value.code == 0
     assert capsys.readouterr().out.startswith("qm-template ")
-
-
-def test_short_version_flag(capsys: pytest.CaptureFixture[str]) -> None:
-    with pytest.raises(SystemExit) as excinfo:
-        build_parser().parse_args(["-V"])
-    assert excinfo.value.code == 0
-    assert capsys.readouterr().out.startswith("qm-template ")
-
-
-def test_short_options_parse() -> None:
-    args = build_parser().parse_args(["download", "-n", "-q", "alpine"])
-    assert args.dry_run is True
-    assert args.quiet is True
-    args = build_parser().parse_args(["create", "-n"])
-    assert args.dry_run is True
-    args = build_parser().parse_args(["prepare", "-n", "-f"])
-    assert args.dry_run is True
-    assert args.force is True
-    args = build_parser().parse_args(["distros", "-c", "custom.toml"])
-    assert args.config == "custom.toml"
 
 
 def test_keyboard_interrupt_returns_130(
@@ -73,6 +57,39 @@ def test_distros_command_lists_supported_distros(
     output = capsys.readouterr().out
     assert "debian" in output
     assert "ubuntu" in output
+    assert "choices: generic, genericcloud" in output
+
+
+def test_distros_command_describes_one_distro(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = tmp_path / "config.toml"
+    config.write_text('[distro.debian]\nrelease = "bookworm"\n')
+    assert main(["distros", "debian", "-c", str(config)]) == 0
+    output = capsys.readouterr().out
+    assert "release = bookworm" in output
+    assert "ubuntu" not in output
+    assert main(["distros", "unknown", "-c", str(config)]) == 1
+
+
+def test_short_options_parse() -> None:
+    args = build_parser().parse_args(["download", "-n", "-q", "alpine"])
+    assert args.dry_run is True
+    assert args.quiet is True
+    args = build_parser().parse_args(["create", "-n"])
+    assert args.dry_run is True
+    args = build_parser().parse_args(["prepare", "-n", "-f"])
+    assert args.dry_run is True
+    assert args.force is True
+    args = build_parser().parse_args(["distros", "-c", "custom.toml"])
+    assert args.config == "custom.toml"
+
+
+def test_short_version_flag(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        build_parser().parse_args(["-V"])
+    assert excinfo.value.code == 0
+    assert capsys.readouterr().out.startswith("qm-template ")
 
 
 def test_first_run_writes_default_config(
@@ -153,8 +170,8 @@ def test_create_picks_next_free_vm_id(
     config = write_config(
         tmp_path,
         images,
-        "start_id = 9000\nstep = 5\n",
-        'sshkeys = ["ssh-ed25519 AAAA"]\n',
+        cloudinit='sshkeys = ["ssh-ed25519 AAAA"]\n',
+        vmid="start = 9000\nstep = 5\n",
     )
     monkeypatch.setattr("qm_template.commands.used_vm_ids", lambda: {9000, 9005})
     monkeypatch.setattr("qm_template.commands.check_storage", lambda _storage: None)
@@ -189,13 +206,13 @@ def test_create_rejects_invalid_resource_values(
     config = write_config(
         tmp_path, images, cloudinit='sshkeys = ["ssh-ed25519 AAAA"]\n'
     )
-    assert main(["create", "--cores", "0", "--config", str(config)]) == 1
-    assert "cores must be a positive integer" in capsys.readouterr().err
-    assert main(["create", "--memory", "0", "--config", str(config)]) == 1
-    assert "memory must be a positive integer" in capsys.readouterr().err
+    assert main(["create", "-c", str(config), "--cores", "0"]) == 1
+    assert "cores" in capsys.readouterr().err
+    assert main(["create", "-c", str(config), "--memory", "0"]) == 1
+    assert "memory" in capsys.readouterr().err
 
 
-def test_create_rejects_invalid_start_id(
+def test_create_rejects_invalid_vmid_settings(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     images = tmp_path / "images"
@@ -204,16 +221,19 @@ def test_create_rejects_invalid_start_id(
     config = write_config(
         tmp_path,
         images,
-        "start_id = 50\n",
-        'sshkeys = ["ssh-ed25519 AAAA"]\n',
+        cloudinit='sshkeys = ["ssh-ed25519 AAAA"]\n',
+        vmid="start = 50\n",
     )
     assert main(["create", "--config", str(config)]) == 1
-    assert "start ID must be at least 100" in capsys.readouterr().err
+    assert "vmid.start" in capsys.readouterr().err
     config = write_config(
-        tmp_path, images, "step = 0\n", 'sshkeys = ["ssh-ed25519 AAAA"]\n'
+        tmp_path,
+        images,
+        cloudinit='sshkeys = ["ssh-ed25519 AAAA"]\n',
+        vmid="step = 0\n",
     )
     assert main(["create", "--config", str(config)]) == 1
-    assert "step must be a positive integer" in capsys.readouterr().err
+    assert "vmid.step" in capsys.readouterr().err
 
 
 def test_create_reports_a_partially_created_vm(
@@ -292,22 +312,15 @@ def test_download_skips_an_already_verified_image(
     assert image.with_name(image.name + ".sha512").read_text().startswith(digest)
 
 
-def test_download_ignores_tag_for_unsupported_distro(
+def test_download_rejects_tag_for_unsupported_distro(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr("shutil.which", lambda _name: "/usr/bin/downloader")
-    monkeypatch.setattr(
-        "qm_template.distros.base.list_directory",
-        lambda _url: ["generic_alpine-3.24.0-x86_64-bios-cloudinit-r0.qcow2"],
-    )
     config = tmp_path / "config.toml"
     config.write_text("")
-    assert (
-        main(["download", "alpine", "--tag", "x", "--dry-run", "--config", str(config)])
-        == 0
-    )
+    assert main(["download", "alpine", "--tag", "x", "-c", str(config)]) == 1
     assert "does not support --tag" in capsys.readouterr().err
 
 

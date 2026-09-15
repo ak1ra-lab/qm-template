@@ -3,11 +3,26 @@ import binascii
 import hashlib
 import os
 import tomllib
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from collections.abc import Mapping
 from importlib import resources
 from pathlib import Path
 from typing import Any
+
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+    SettingsError,
+    TomlConfigSettingsSource,
+)
 
 from qm_template import PROGRAM
 from qm_template.distros import DISTROS
@@ -51,102 +66,6 @@ def write_default_config(path: Path) -> bool:
     return True
 
 
-@dataclass(frozen=True)
-class DownloadSettings:
-    preferred: tuple[str, ...] = ("axel", "aria2c", "wget", "curl")
-    connections: int = 8
-    quiet: bool = False
-    default_distro: str = "debian"
-    defaults: Mapping[str, Mapping[str, str]] = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
-class CloudInitSettings:
-    user: str = "debian"
-    password: str = "debian"
-    sshkeys: tuple[str, ...] = ()
-    sshkeys_files: tuple[str, ...] = ()
-
-
-@dataclass(frozen=True)
-class CreateSettings:
-    storage: str = "local-lvm"
-    cores: int = 1
-    memory: int = 1024
-    cpu: str = "host"
-    bridge: str = "vmbr0"
-    start_id: int = 9000
-    step: int = 1
-
-
-@dataclass(frozen=True)
-class Settings:
-    images_dir: Path = field(default_factory=default_images_dir)
-    download: DownloadSettings = field(default_factory=DownloadSettings)
-    cloudinit: CloudInitSettings = field(default_factory=CloudInitSettings)
-    create: CreateSettings = field(default_factory=CreateSettings)
-
-
-_DOWNLOAD_DEFAULTS = DownloadSettings()
-_CLOUDINIT_DEFAULTS = CloudInitSettings()
-_CREATE_DEFAULTS = CreateSettings()
-_DOWNLOAD_KEYS = frozenset(DownloadSettings.__dataclass_fields__) - {"defaults"}
-_CLOUDINIT_KEYS = frozenset(CloudInitSettings.__dataclass_fields__)
-_CREATE_KEYS = frozenset(CreateSettings.__dataclass_fields__)
-
-
-def _table(data: Mapping[str, Any], key: str, source: Path) -> Mapping[str, Any]:
-    value = data.get(key, {})
-    if not isinstance(value, dict):
-        raise QmTemplateError(f"[{key}] must be a table in {source}")
-    return value
-
-
-def _reject_unknown(
-    table: Mapping[str, Any],
-    allowed: set[str] | frozenset[str],
-    section: str | None,
-    source: Path,
-) -> None:
-    unknown = sorted(set(table) - allowed)
-    if unknown:
-        names = ", ".join(repr(key) for key in unknown)
-        where = f"in [{section}]" if section else "at the top level"
-        raise QmTemplateError(f"unknown keys {names} {where} of {source}")
-
-
-def _str(table: Mapping[str, Any], key: str, default: str, source: Path) -> str:
-    value = table.get(key, default)
-    if not isinstance(value, str):
-        raise QmTemplateError(f"{key!r} must be a string in {source}")
-    return value
-
-
-def _int(table: Mapping[str, Any], key: str, default: int, source: Path) -> int:
-    value = table.get(key, default)
-    if not isinstance(value, int) or isinstance(value, bool):
-        raise QmTemplateError(f"{key!r} must be an integer in {source}")
-    return value
-
-
-def _bool(table: Mapping[str, Any], key: str, default: bool, source: Path) -> bool:
-    value = table.get(key, default)
-    if not isinstance(value, bool):
-        raise QmTemplateError(f"{key!r} must be a boolean in {source}")
-    return value
-
-
-def _string_list(
-    table: Mapping[str, Any], key: str, default: Sequence[str], source: Path
-) -> tuple[str, ...]:
-    value = table.get(key, default)
-    if not isinstance(value, (list, tuple)) or not all(
-        isinstance(item, str) for item in value
-    ):
-        raise QmTemplateError(f"{key!r} must be a list of strings in {source}")
-    return tuple(value)
-
-
 SSH_KEY_TYPE_PREFIXES = ("ssh-", "ecdsa-sha2-", "sk-")
 
 
@@ -162,95 +81,230 @@ def ssh_key_fingerprint(line: str) -> str | None:
     return base64.b64encode(digest).rstrip(b"=").decode("ascii")
 
 
-def _ssh_keys(table: Mapping[str, Any], key: str, source: Path) -> tuple[str, ...]:
-    keys: list[str] = []
-    for value in _string_list(table, key, _CLOUDINIT_DEFAULTS.sshkeys, source):
-        stripped = value.strip()
-        if not stripped.startswith(SSH_KEY_TYPE_PREFIXES) or not ssh_key_fingerprint(
-            stripped
-        ):
-            raise QmTemplateError(
-                f"{key!r} entry {value!r} does not look like an SSH public key "
-                f"in {source}"
+def _check_ssh_key(value: Any) -> str:
+    if not isinstance(value, str):
+        raise ValueError("entries must be strings")
+    stripped = value.strip()
+    if not stripped.startswith(SSH_KEY_TYPE_PREFIXES) or not ssh_key_fingerprint(
+        stripped
+    ):
+        raise ValueError(f"{value!r} does not look like an SSH public key")
+    return stripped
+
+
+class PathsSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    images_dir: Path = Field(default_factory=default_images_dir)
+
+    @field_validator("images_dir", mode="before")
+    @classmethod
+    def _expand(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return Path(os.path.expandvars(value)).expanduser()
+        return value
+
+
+class DownloadSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    preferred: tuple[str, ...] = ("axel", "aria2c", "wget", "curl")
+    connections: int = Field(8, ge=1)
+    quiet: bool = False
+    default_distro: str = "debian"
+
+    @field_validator("default_distro")
+    @classmethod
+    def _known_distro(cls, value: str) -> str:
+        if value not in DISTROS:
+            raise ValueError(
+                f"unknown distro {value!r} (run `{PROGRAM} distros` for a list)"
             )
-        keys.append(stripped)
-    return tuple(keys)
+        return value
 
 
-def _parse_download(table: Mapping[str, Any], source: Path) -> DownloadSettings:
-    _reject_unknown(table, _DOWNLOAD_KEYS | set(DISTROS), "download", source)
-    defaults: dict[str, dict[str, str]] = {}
-    for key, value in table.items():
-        if key in _DOWNLOAD_KEYS:
-            continue
-        if not isinstance(value, dict):
-            raise QmTemplateError(f"[download.{key}] must be a table in {source}")
-        allowed = set(DISTROS[key].defaults) | {"tag"}
-        params: dict[str, str] = {}
-        for param, raw in value.items():
-            if param not in allowed:
-                raise QmTemplateError(
-                    f"unknown parameter {param!r} in [download.{key}] of {source}"
+class DistroOverride(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    release: str | None = None
+    variant: str | None = None
+    arch: str | None = None
+    tag: str | None = None
+    base_url: str | None = None
+
+    @field_validator("release", "variant", "arch", "tag", mode="before")
+    @classmethod
+    def _coerce_int(cls, value: Any) -> Any:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, int):
+            return str(value)
+        return value
+
+
+class CreateSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    storage: str = "local-lvm"
+    cores: int = Field(1, ge=1)
+    memory: int = Field(1024, ge=1)
+    cpu: str = "host"
+    bridge: str = "vmbr0"
+
+
+class VmidSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    start: int = Field(9000, ge=100)
+    step: int = Field(1, ge=1)
+
+
+class CloudInitSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    user: str = "debian"
+    password: str = "debian"
+    sshkeys: tuple[str, ...] = ()
+    sshkeys_files: tuple[str, ...] = ()
+
+    @field_validator("sshkeys", mode="before")
+    @classmethod
+    def _ssh_keys(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            raise ValueError("must be a list of strings")
+        if isinstance(value, (list, tuple)):
+            return tuple(_check_ssh_key(entry) for entry in value)
+        return value
+
+    @field_validator("sshkeys_files", mode="before")
+    @classmethod
+    def _string_files(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            raise ValueError("must be a list of strings")
+        if isinstance(value, (list, tuple)):
+            return tuple(value)
+        return value
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        extra="forbid",
+        env_prefix="QM_TEMPLATE_",
+        env_nested_delimiter="__",
+    )
+
+    paths: PathsSettings = Field(default_factory=PathsSettings)
+    download: DownloadSettings = Field(default_factory=DownloadSettings)
+    distro: dict[str, DistroOverride] = Field(default_factory=dict)
+    create: CreateSettings = Field(default_factory=CreateSettings)
+    vmid: VmidSettings = Field(default_factory=VmidSettings)
+    cloudinit: CloudInitSettings = Field(default_factory=CloudInitSettings)
+
+    @model_validator(mode="after")
+    def _check_distro_overrides(self) -> "Settings":
+        for name, override in self.distro.items():
+            distro = DISTROS.get(name)
+            if distro is None:
+                raise ValueError(
+                    f"unknown distro {name!r} (run `{PROGRAM} distros` for a list)"
                 )
-            if isinstance(raw, bool) or not isinstance(raw, (str, int)):
-                raise QmTemplateError(
-                    f"[download.{key}].{param} must be a string or integer in {source}"
-                )
-            params[param] = str(raw)
-        defaults[key] = params
-    connections = _int(table, "connections", _DOWNLOAD_DEFAULTS.connections, source)
-    if connections < 1:
-        raise QmTemplateError(f"'connections' must be a positive integer in {source}")
-    return DownloadSettings(
-        preferred=_string_list(
-            table, "preferred", _DOWNLOAD_DEFAULTS.preferred, source
-        ),
-        connections=connections,
-        quiet=_bool(table, "quiet", _DOWNLOAD_DEFAULTS.quiet, source),
-        default_distro=_str(
-            table, "default_distro", _DOWNLOAD_DEFAULTS.default_distro, source
-        ),
-        defaults=defaults,
-    )
+            for param, value in override.model_dump(exclude_none=True).items():
+                option = distro.options.get(param)
+                if option is None:
+                    supported = ", ".join(sorted(distro.options))
+                    raise ValueError(
+                        f"unknown parameter {param!r} for distro {name!r} "
+                        f"(supported: {supported})"
+                    )
+                if not option.accepts(str(value)):
+                    choices = ", ".join(option.choices or ())
+                    raise ValueError(
+                        f"invalid {param} {value!r} for distro {name!r} "
+                        f"(choose from: {choices})"
+                    )
+        return self
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        sources: list[PydanticBaseSettingsSource] = [init_settings, env_settings]
+        toml_file = settings_cls.model_config.get("toml_file")
+        if toml_file is not None:
+            sources.append(TomlConfigSettingsSource(settings_cls, toml_file=toml_file))
+        sources.extend([dotenv_settings, file_secret_settings])
+        return tuple(sources)
+
+    def distro_overrides(self, name: str) -> dict[str, str]:
+        """Return the configured overrides for a distro, without unset options."""
+        override = self.distro.get(name)
+        if override is None:
+            return {}
+        return {
+            key: value
+            for key, value in override.model_dump().items()
+            if value is not None
+        }
+
+    @property
+    def images_dir(self) -> Path:
+        return self.paths.images_dir
 
 
-def _parse_cloudinit(table: Mapping[str, Any], source: Path) -> CloudInitSettings:
-    _reject_unknown(table, _CLOUDINIT_KEYS, "cloudinit", source)
-    return CloudInitSettings(
-        user=_str(table, "user", _CLOUDINIT_DEFAULTS.user, source),
-        password=_str(table, "password", _CLOUDINIT_DEFAULTS.password, source),
-        sshkeys=_ssh_keys(table, "sshkeys", source),
-        sshkeys_files=_string_list(
-            table, "sshkeys_files", _CLOUDINIT_DEFAULTS.sshkeys_files, source
-        ),
-    )
+_MOVED_KEYS = {
+    ("create", "start_id"): "[vmid].start",
+    ("create", "step"): "[vmid].step",
+}
 
 
-def _parse_create(table: Mapping[str, Any], source: Path) -> CreateSettings:
-    _reject_unknown(table, _CREATE_KEYS, "create", source)
-    return CreateSettings(
-        storage=_str(table, "storage", _CREATE_DEFAULTS.storage, source),
-        cores=_int(table, "cores", _CREATE_DEFAULTS.cores, source),
-        memory=_int(table, "memory", _CREATE_DEFAULTS.memory, source),
-        cpu=_str(table, "cpu", _CREATE_DEFAULTS.cpu, source),
-        bridge=_str(table, "bridge", _CREATE_DEFAULTS.bridge, source),
-        start_id=_int(table, "start_id", _CREATE_DEFAULTS.start_id, source),
-        step=_int(table, "step", _CREATE_DEFAULTS.step, source),
-    )
+def _moved_to(location: tuple[Any, ...]) -> str | None:
+    if location in _MOVED_KEYS:
+        return _MOVED_KEYS[location]
+    if len(location) == 2 and location[0] == "download":
+        return f"[distro.{location[1]}]"
+    return None
 
 
-def parse_settings(data: Mapping[str, Any], source: Path) -> Settings:
-    _reject_unknown(data, {"paths", "download", "cloudinit", "create"}, None, source)
-    paths = _table(data, "paths", source)
-    _reject_unknown(paths, {"images_dir"}, "paths", source)
-    images_dir_value = _str(paths, "images_dir", str(default_images_dir()), source)
-    images_dir = Path(os.path.expandvars(images_dir_value)).expanduser()
-    return Settings(
-        images_dir=images_dir,
-        download=_parse_download(_table(data, "download", source), source),
-        cloudinit=_parse_cloudinit(_table(data, "cloudinit", source), source),
-        create=_parse_create(_table(data, "create", source), source),
-    )
+def _error_message(error: Mapping[str, Any], *, source: Path | None) -> str:
+    where = f" in {source}" if source else ""
+    location = tuple(error["loc"])
+    path = ".".join(str(part) for part in location)
+    if error["type"] == "extra_forbidden":
+        moved = _moved_to(location)
+        hint = f" (moved to {moved})" if moved else ""
+        if not path:
+            return f"unknown key{where}{hint}"
+        return f"unknown key {path!r}{where}{hint}"
+    message = str(error["msg"])
+    for prefix in ("Value error, ", "Assertion failed, "):
+        if message.startswith(prefix):
+            message = message[len(prefix) :]
+    if not path:
+        return f"{message}{where}" if where else message
+    return f"invalid {path!r}{where}: {message}"
+
+
+def format_settings_error(
+    exc: ValidationError | SettingsError | tomllib.TOMLDecodeError,
+    *,
+    source: Path | None,
+) -> str:
+    if isinstance(exc, (SettingsError, tomllib.TOMLDecodeError)):
+        return f"invalid TOML in {source}: {exc}"
+    errors = exc.errors()
+    return "; ".join(_error_message(error, source=source) for error in errors)
+
+
+def parse_settings(data: dict[str, Any], source: Path) -> Settings:
+    try:
+        return Settings.model_validate(data)
+    except ValidationError as exc:
+        raise QmTemplateError(format_settings_error(exc, source=source)) from exc
 
 
 def load_settings(path: Path, *, explicit: bool) -> Settings:
@@ -260,9 +314,12 @@ def load_settings(path: Path, *, explicit: bool) -> Settings:
         log.debug("No configuration file at %s, using built-in defaults", path)
         return Settings()
     log.debug("Loading configuration from: %s", path)
+    toml_settings_cls: type[Settings] = type(
+        "TomlSettings",
+        (Settings,),
+        {"model_config": Settings.model_config | {"toml_file": path}},
+    )
     try:
-        with path.open("rb") as handle:
-            data = tomllib.load(handle)
-    except tomllib.TOMLDecodeError as exc:
-        raise QmTemplateError(f"invalid TOML in {path}: {exc}") from exc
-    return parse_settings(data, source=path)
+        return toml_settings_cls()
+    except (ValidationError, SettingsError, tomllib.TOMLDecodeError) as exc:
+        raise QmTemplateError(format_settings_error(exc, source=path)) from exc
