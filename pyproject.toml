@@ -3,7 +3,10 @@ name = "qm-template"
 dynamic = ["version"]
 description = "Download cloud images and create Proxmox VE VM templates"
 authors = [{ name = "ak1ra", email = "git@ak1ra.xyz" }]
-dependencies = []
+dependencies = [
+    "argcomplete>=3.7.2",
+    "pydantic-settings>=2.15.0",
+]
 requires-python = ">=3.11"
 classifiers = [
     "Development Status :: 4 - Beta",
