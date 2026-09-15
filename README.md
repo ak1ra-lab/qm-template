@@ -25,7 +25,7 @@ prepares VirtualBox artifacts, with Cloud-Init support.
   single `qm create ... --template 1` invocation instead of a chain of
   `qm set` calls
 - **Automatic VM IDs**: the next free ID is picked from `qm list` (or the
-  Proxmox config directory), starting at `create.start_id` (default 9000)
+  Proxmox config directory), starting at `vmid.start` (default 9000)
 - **Configurable CPU type**: `create.cpu`/`--cpu` overrides the default
   `cputype=host` when migration across CPU generations matters
 - **Local VM artifacts**: `prepare` converts an image to VDI, VMDK, QCOW2, raw
@@ -259,7 +259,8 @@ derives from the `[cloudinit]` settings; pass `--force`/`-f` to convert again.
 ## Supported distros
 
 `qm-template distros` is the authoritative list, including the accepted values
-of every parameter. Defaults:
+of every parameter. Only Debian and Fedora accept `--tag` for a specific
+build; using it with any other distro is an error. Defaults:
 
 | Name        | Default release | Default variant | Notes                             |
 | ----------- | --------------- | --------------- | --------------------------------- |
@@ -291,8 +292,8 @@ qm-template/
 ├── config.example.toml
 ├── src/qm_template/
 │   ├── cli.py          # argument parsing, completion and entry point
-│   ├── commands.py     # download / create / prepare / distros commands
-│   ├── config.py       # pydantic-settings models and first-run config seeding
+│   ├── commands.py     # download / create / prepare / distros / config commands
+│   ├── config.py       # pydantic-settings models and configuration loading
 │   ├── checksum.py     # checksum parsing and verification
 │   ├── cloudinit.py    # SSH key collection and seed user-data/meta-data
 │   ├── config.default.toml  # default configuration shipped in the wheel

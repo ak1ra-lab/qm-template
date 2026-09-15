@@ -48,8 +48,8 @@ uv tool install .
 无法跨 CPU 代际迁移）。`vmid.start` 和 `vmid.step`（默认 `9000` 和 `1`）控制
 VM ID 的自动选择。
 
-按发行版覆盖参数是可选的，位于 `[distro.<name>]` 下；这些覆盖不会写入生成的默认
-配置文件，只在某个发行版需要偏离内置默认值时才添加：
+按发行版覆盖参数是可选的，位于 `[distro.<name>]` 下；这些覆盖不会出现在
+`qm-template config` 打印的默认配置中，只在某个发行版需要偏离内置默认值时才添加：
 
 ```toml
 [distro.debian]
@@ -115,7 +115,9 @@ qm-template download -q alpine
 
 `--dry-run` 会解析镜像并 pretty print 首个可用下载器的命令，每个参数组一行，不执行下载。
 上游提供日期快照的发行版（Debian、Ubuntu server、Arch Linux、openSUSE
-Tumbleweed）会固定到最新构建，新构建会与旧构建并存而不是覆盖。中断的下载会在下次运行时
+Tumbleweed）会固定到最新构建，新构建会与旧构建并存而不是覆盖。`--tag` 用于选择
+具体构建，只有支持它的发行版才会接受（目前是 Debian 和 Fedora，`qm-template
+distros` 会标注）。中断的下载会在下次运行时
 续传，未完成的文件保存为 `<image>.part`。下载失败会使用同一个下载器从零重试，不会切换
 到其他下载器；下载完成但校验和不匹配时会再从头下载一次，仍失败才报错。校验和文件与目录
 列表在遇到瞬时 5xx 或网络错误时会按指数退避重试。获取到的校验和会与镜像一起保存为

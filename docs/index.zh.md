@@ -15,7 +15,12 @@
   下一个空闲 VM ID，并可配置 CPU 类型。
 - **本地虚拟机产物**：`qm-template prepare` 通过 `qemu-img` 转换磁盘格式
   （VDI、VMDK、QCOW2、raw 或 VHDX）并生成 NoCloud seed ISO，两者与源镜像同目录存放。
-- **TOML 配置**：使用标准库的 `tomllib` 读取。
+- **配置校验**：设置及可选的 `[distro.<name>]` 覆盖值由 `pydantic-settings` 校验，
+  可用 `QM_TEMPLATE_*` 环境变量覆盖配置文件，`qm-template config` 会把起始配置
+  打印到 stdout。
+- **镜像站友好**：通过 `[distro.<name>] base_url` 把任意发行版指向上游或镜像站，
+  校验和文件也来自同一 base。
+- **Shell 补全**：由 `argcomplete` 提供，包括每个发行版支持的参数值。
 
 ## 快速开始
 

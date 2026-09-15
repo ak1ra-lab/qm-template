@@ -17,7 +17,14 @@ prepares VirtualBox artifacts, with Cloud-Init support.
 - **Local VM artifacts** with `qm-template prepare`: a hypervisor disk
   conversion via `qemu-img` (VDI, VMDK, QCOW2, raw or VHDX) and a generated
   NoCloud seed ISO, both next to the source image.
-- **TOML configuration** read with `tomllib` from the standard library.
+- **Validated configuration**: settings and optional `[distro.<name>]`
+  overrides are checked with `pydantic-settings`, `QM_TEMPLATE_*` environment
+  variables override the file, and `qm-template config` prints a
+  starting-point configuration to stdout.
+- **Mirror-friendly**: point any distro at an upstream or mirror through
+  `[distro.<name>] base_url`, including its checksum file.
+- **Shell completion** with `argcomplete`, including the parameter values each
+  distro accepts.
 
 ## Quick start
 

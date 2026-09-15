@@ -54,8 +54,8 @@ is required. `create.cpu` sets the CPU type passed to `qm` as `cputype=...`
 selection.
 
 Per-distro overrides are optional and live under `[distro.<name>]`. They are
-not written to the generated default file; add them only when a distro should
-use something other than its built-in default:
+not included in the default configuration printed by `qm-template config`; add
+them only when a distro should use something other than its built-in default:
 
 ```toml
 [distro.debian]
@@ -129,7 +129,9 @@ qm-template download -q alpine
 available downloader, one argument group per line, without downloading anything.
 Builds are pinned where the upstream provides dated snapshots (Debian, Ubuntu
 server, Arch Linux, openSUSE Tumbleweed), so a newer build is downloaded
-alongside the old one instead of overwriting it. Interrupted downloads are
+alongside the old one instead of overwriting it. `--tag` selects a specific
+build and is only accepted by distros that support it (Debian and Fedora;
+`qm-template distros` marks it). Interrupted downloads are
 resumed on the next run; partial files are stored as `<image>.part`. A failed
 download is retried from scratch with the same downloader and never switches to
 another one; a completed download that fails checksum verification is downloaded
