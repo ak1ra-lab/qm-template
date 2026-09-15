@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Removed
+
+- Remove the `qm-template images` command and its `--prune`/`--dry-run`/`--yes`
+  options; `tree -h <images_dir>` shows the same local inventory.
+
+### Fixed
+
+- Never switch to the next configured downloader after a failure: the first
+  available downloader is kept and retried from scratch instead, matching the
+  documented "first available command is used" behavior.
+
 ## [0.2.0] - 2026-09-14
 
 ### Added

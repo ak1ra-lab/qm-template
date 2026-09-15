@@ -20,7 +20,7 @@ def test_download_verified_retries_after_checksum_mismatch(monkeypatch, tmp_path
     part = tmp_path / "image.qcow2.part"
     calls: list[int] = []
 
-    def fake_download(image, destination, downloaders):
+    def fake_download(image, destination, downloader):
         calls.append(1)
         part.write_bytes(b"data")
         return part
@@ -31,7 +31,8 @@ def test_download_verified_retries_after_checksum_mismatch(monkeypatch, tmp_path
         "qm_template.commands.verify_checksum", lambda *_args: next(results)
     )
     assert (
-        _download_verified(remote_image(), tmp_path / "image.qcow2", [], "abc") == part
+        _download_verified(remote_image(), tmp_path / "image.qcow2", None, "abc")
+        == part
     )
     assert len(calls) == 2
 
@@ -40,7 +41,7 @@ def test_download_verified_gives_up_after_two_attempts(monkeypatch, tmp_path):
     part = tmp_path / "image.qcow2.part"
     calls: list[int] = []
 
-    def fake_download(image, destination, downloaders):
+    def fake_download(image, destination, downloader):
         calls.append(1)
         part.write_bytes(b"data")
         return part
@@ -48,6 +49,6 @@ def test_download_verified_gives_up_after_two_attempts(monkeypatch, tmp_path):
     monkeypatch.setattr("qm_template.commands.download_image", fake_download)
     monkeypatch.setattr("qm_template.commands.verify_checksum", lambda *_args: False)
     with pytest.raises(QmTemplateError):
-        _download_verified(remote_image(), tmp_path / "image.qcow2", [], "abc")
+        _download_verified(remote_image(), tmp_path / "image.qcow2", None, "abc")
     assert len(calls) == 2
     assert not part.exists()

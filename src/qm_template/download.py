@@ -104,59 +104,55 @@ DOWNLOADERS: dict[str, type[Downloader]] = {
 }
 
 
-def select_downloaders(
+def select_downloader(
     preferred: Sequence[str], connections: int = 1, *, quiet: bool = False
-) -> list[Downloader]:
-    selected = []
+) -> Downloader:
+    """Return the first available downloader from the preference order."""
     for name in preferred:
         downloader_class = DOWNLOADERS.get(name)
         if downloader_class is None:
             log.warning("Unknown downloader %r in configuration", name)
             continue
         if downloader_class.available():
-            selected.append(downloader_class(connections, quiet=quiet))
-        else:
-            log.debug("%s is not installed", name)
-    if not selected:
-        raise QmTemplateError(
-            "none of the preferred downloaders are available: " + ", ".join(preferred)
-        )
-    return selected
+            return downloader_class(connections, quiet=quiet)
+        log.debug("%s is not installed", name)
+    raise QmTemplateError(
+        "none of the preferred downloaders are available: " + ", ".join(preferred)
+    )
 
 
 def part_path(destination: Path) -> Path:
     return destination.with_name(destination.name + ".part")
 
 
-def _run_downloaders(url: str, part: Path, downloaders: Sequence[Downloader]) -> bool:
-    for downloader in downloaders:
-        argv = flatten(downloader.build_command(url, part))
-        log.info("Downloading %s with %s", part.name, downloader.name)
-        log.debug("Running: %s", shlex.join(argv))
-        try:
-            result = subprocess.run(argv)
-        except OSError as exc:
-            log.warning("could not run %s: %s", downloader.name, exc)
-            continue
-        if result.returncode == 0 and part.is_file() and part.stat().st_size > 0:
-            return True
-        log.warning("%s failed with exit status %d", downloader.name, result.returncode)
+def _run_downloader(url: str, part: Path, downloader: Downloader) -> bool:
+    argv = flatten(downloader.build_command(url, part))
+    log.info("Downloading %s with %s", part.name, downloader.name)
+    log.debug("Running: %s", shlex.join(argv))
+    try:
+        result = subprocess.run(argv)
+    except OSError as exc:
+        log.warning("could not run %s: %s", downloader.name, exc)
+        return False
+    if result.returncode == 0 and part.is_file() and part.stat().st_size > 0:
+        return True
+    log.warning("%s failed with exit status %d", downloader.name, result.returncode)
     return False
 
 
 def download_image(
     image: RemoteImage,
     destination: Path,
-    downloaders: Sequence[Downloader],
+    downloader: Downloader,
 ) -> Path:
     part = part_path(destination)
     if part.is_file():
         log.info("Found a partial download, attempting to resume")
-    if _run_downloaders(image.url, part, downloaders):
+    if _run_downloader(image.url, part, downloader):
         return part
     if part.is_file():
         log.warning("Removing partial download and retrying from scratch")
         part.unlink()
-        if _run_downloaders(image.url, part, downloaders):
+        if _run_downloader(image.url, part, downloader):
             return part
     raise QmTemplateError(f"failed to download {image.url}")

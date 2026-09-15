@@ -11,7 +11,7 @@ from qm_template.download import (
     Wget,
     download_image,
     part_path,
-    select_downloaders,
+    select_downloader,
 )
 from qm_template.errors import QmTemplateError
 from qm_template.shell import flatten
@@ -49,37 +49,54 @@ def test_part_path_appends_part_suffix(tmp_path):
     assert part_path(tmp_path / "image.qcow2") == tmp_path / "image.qcow2.part"
 
 
-def test_select_downloaders_rejects_empty_preference():
+def test_select_downloader_rejects_empty_preference():
     with pytest.raises(QmTemplateError):
-        select_downloaders([], 8)
+        select_downloader([], 8)
 
 
-def test_select_downloaders_configures_connections(monkeypatch):
+def test_select_downloader_configures_connections(monkeypatch):
     class FakeWget(Wget):
         @classmethod
         def available(cls) -> bool:
             return True
 
     monkeypatch.setattr("qm_template.download.DOWNLOADERS", {"wget": FakeWget})
-    selected = select_downloaders(["nope", "wget"], 8)
-    assert len(selected) == 1
-    assert isinstance(selected[0], FakeWget)
-    assert selected[0].connections == 8
-    assert selected[0].quiet is False
+    selected = select_downloader(["nope", "wget"], 8)
+    assert isinstance(selected, FakeWget)
+    assert selected.connections == 8
+    assert selected.quiet is False
 
 
-def test_select_downloaders_forwards_quiet(monkeypatch):
+def test_select_downloader_prefers_the_first_available(monkeypatch):
+    class FakeAxel(Axel):
+        @classmethod
+        def available(cls) -> bool:
+            return True
+
+    class FakeWget(Wget):
+        @classmethod
+        def available(cls) -> bool:
+            return True
+
+    monkeypatch.setattr(
+        "qm_template.download.DOWNLOADERS", {"axel": FakeAxel, "wget": FakeWget}
+    )
+    selected = select_downloader(["axel", "wget"])
+    assert isinstance(selected, FakeAxel)
+
+
+def test_select_downloader_forwards_quiet(monkeypatch):
     class FakeWget(Wget):
         @classmethod
         def available(cls) -> bool:
             return True
 
     monkeypatch.setattr("qm_template.download.DOWNLOADERS", {"wget": FakeWget})
-    selected = select_downloaders(["wget"], quiet=True)
-    assert selected[0].quiet is True
+    selected = select_downloader(["wget"], quiet=True)
+    assert selected.quiet is True
 
 
-def test_select_downloaders_skips_missing_binaries(monkeypatch):
+def test_select_downloader_skips_missing_binaries(monkeypatch):
     class MissingWget(Wget):
         @classmethod
         def available(cls) -> bool:
@@ -87,7 +104,7 @@ def test_select_downloaders_skips_missing_binaries(monkeypatch):
 
     monkeypatch.setattr("qm_template.download.DOWNLOADERS", {"wget": MissingWget})
     with pytest.raises(QmTemplateError):
-        select_downloaders(["wget"])
+        select_downloader(["wget"])
 
 
 def test_quiet_downloaders_suppress_progress(tmp_path):
@@ -133,26 +150,6 @@ class FakeDownloader:
         return [[self.name, str(destination)], [url]]
 
 
-def test_download_image_uses_next_downloader(monkeypatch, tmp_path):
-    calls: list[str] = []
-    destination = tmp_path / "image.qcow2"
-
-    def fake_run(argv):
-        calls.append(argv[0])
-        if argv[0] == "first":
-            return SimpleNamespace(returncode=1)
-        Path(argv[1]).write_bytes(b"data")
-        return SimpleNamespace(returncode=0)
-
-    monkeypatch.setattr("qm_template.download.subprocess.run", fake_run)
-    part = download_image(
-        remote_image(), destination, [FakeDownloader("first"), FakeDownloader("second")]
-    )
-    assert part == part_path(destination)
-    assert part.read_bytes() == b"data"
-    assert calls == ["first", "second"]
-
-
 def test_download_image_resumes_an_existing_part_file(monkeypatch, tmp_path):
     destination = tmp_path / "image.qcow2"
     part = part_path(destination)
@@ -165,7 +162,7 @@ def test_download_image_resumes_an_existing_part_file(monkeypatch, tmp_path):
         return SimpleNamespace(returncode=0)
 
     monkeypatch.setattr("qm_template.download.subprocess.run", fake_run)
-    result = download_image(remote_image(), destination, [FakeDownloader("only")])
+    result = download_image(remote_image(), destination, FakeDownloader("only"))
     assert result.read_bytes() == b"partial data"
     assert calls == ["only"]
 
@@ -183,12 +180,12 @@ def test_download_image_retries_from_scratch(monkeypatch, tmp_path):
         return SimpleNamespace(returncode=0)
 
     monkeypatch.setattr("qm_template.download.subprocess.run", fake_run)
-    part = download_image(remote_image(), destination, [FakeDownloader("only")])
+    part = download_image(remote_image(), destination, FakeDownloader("only"))
     assert part.read_bytes() == b"data"
     assert calls == ["only", "only"]
 
 
-def test_download_image_raises_when_downloaders_fail(monkeypatch, tmp_path):
+def test_download_image_raises_when_the_downloader_fails(monkeypatch, tmp_path):
     destination = tmp_path / "image.qcow2"
 
     def fake_run(argv):
@@ -197,7 +194,7 @@ def test_download_image_raises_when_downloaders_fail(monkeypatch, tmp_path):
 
     monkeypatch.setattr("qm_template.download.subprocess.run", fake_run)
     with pytest.raises(QmTemplateError):
-        download_image(remote_image(), destination, [FakeDownloader("only")])
+        download_image(remote_image(), destination, FakeDownloader("only"))
     assert part_path(destination).is_file()
 
 
@@ -209,7 +206,7 @@ def test_download_image_handles_missing_executable(monkeypatch, tmp_path):
 
     monkeypatch.setattr("qm_template.download.subprocess.run", fake_run)
     with pytest.raises(QmTemplateError):
-        download_image(remote_image(), destination, [FakeDownloader("ghost")])
+        download_image(remote_image(), destination, FakeDownloader("ghost"))
 
 
 def test_download_image_rejects_empty_output(monkeypatch, tmp_path):
@@ -221,4 +218,4 @@ def test_download_image_rejects_empty_output(monkeypatch, tmp_path):
 
     monkeypatch.setattr("qm_template.download.subprocess.run", fake_run)
     with pytest.raises(QmTemplateError):
-        download_image(remote_image(), destination, [FakeDownloader("only")])
+        download_image(remote_image(), destination, FakeDownloader("only"))

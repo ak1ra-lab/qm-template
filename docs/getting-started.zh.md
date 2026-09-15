@@ -63,26 +63,15 @@ qm-template download --dry-run alpine
 
 # 关闭下载进度输出
 qm-template download --quiet alpine
-
-# 列出已下载镜像的大小与校验和 sidecar
-qm-template images
-
-# 清理被取代的日期构建和孤立的校验和文件
-qm-template images --prune
 ```
 
 `--dry-run` 会解析镜像并 pretty print 首个可用下载器的命令，每个参数组一行，不执行下载。
 上游提供日期快照的发行版（Debian、Ubuntu server、Arch Linux、openSUSE
 Tumbleweed）会固定到最新构建，新构建会与旧构建并存而不是覆盖。中断的下载会在下次运行时
-续传，未完成的文件保存为 `<image>.part`。下载失败会回退到下一个配置的下载器并从零重试；
-下载完成但校验和不匹配时会再从头下载一次，仍失败才报错。校验和文件与目录列表在遇到瞬时
-5xx 或网络错误时会按指数退避重试。获取到的校验和会与镜像一起保存为
+续传，未完成的文件保存为 `<image>.part`。下载失败会使用同一个下载器从零重试，不会切换
+到其他下载器；下载完成但校验和不匹配时会再从头下载一次，仍失败才报错。校验和文件与目录
+列表在遇到瞬时 5xx 或网络错误时会按指数退避重试。获取到的校验和会与镜像一起保存为
 `<image>.sha256` 或 `<image>.sha512`，取决于上游使用的算法。
-
-`qm-template images [pattern]` 会为每个镜像打印一行，包含可读大小和校验和 sidecar
-算法。`--prune` 会删除名称仅相差构建日期/版本的旧构建及其校验和 sidecar，并清理没有
-对应镜像的校验和文件；除非传入 `--yes`，否则会先请求确认，`--dry-run` 仅列出将要删除的
-文件。
 
 ## 创建虚拟机模板
 

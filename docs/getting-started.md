@@ -67,12 +67,6 @@ qm-template download --dry-run alpine
 
 # hide the downloader progress output
 qm-template download --quiet alpine
-
-# list downloaded images with size and checksum sidecar
-qm-template images
-
-# remove superseded dated builds and orphaned checksum files
-qm-template images --prune
 ```
 
 `--dry-run` resolves the image and pretty prints the command of the first
@@ -81,18 +75,12 @@ Builds are pinned where the upstream provides dated snapshots (Debian, Ubuntu
 server, Arch Linux, openSUSE Tumbleweed), so a newer build is downloaded
 alongside the old one instead of overwriting it. Interrupted downloads are
 resumed on the next run; partial files are stored as `<image>.part`. A failed
-download falls back to the next configured downloader and is retried from
-scratch; a completed download that fails checksum verification is downloaded
+download is retried from scratch with the same downloader and never switches to
+another one; a completed download that fails checksum verification is downloaded
 once more from scratch before the command fails. Checksum files and directory
 listings are retried with exponential backoff on transient 5xx and network
 errors. The fetched checksum is saved next to the image as `<image>.sha256` or
 `<image>.sha512`, depending on the upstream algorithm.
-
-`qm-template images [pattern]` prints one line per image with a human-readable
-size and the checksum sidecar algorithm. `--prune` removes older builds whose
-names differ only in build dates/versions, together with their checksum
-sidecars, plus checksum files whose image is gone. Pruning asks for confirmation
-unless `--yes` is passed; `--dry-run` only lists the files it would remove.
 
 ## Create a VM template
 

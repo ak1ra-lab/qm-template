@@ -15,15 +15,12 @@ with Cloud-Init support.
   checksum files and saved next to the image (`<image>.sha256`/`.sha512`)
 - **Pinned builds**: dated builds are selected where the upstream offers them,
   and images mirror the upstream directory layout
-- **Resumable downloads**: uses `axel`, `aria2c`, `wget` or `curl`, whichever
-  is available, with a configurable number of parallel connections, progress
-  output by default (silence it with `--quiet`) and a from-scratch retry when a
-  download fails or fails checksum verification
+- **Resumable downloads**: uses the first available of `axel`, `aria2c`, `wget`
+  or `curl`, with a configurable number of parallel connections, progress
+  output by default (silence it with `--quiet`) and a from-scratch retry with
+  the same downloader when a download fails or fails checksum verification
 - **Retrying metadata fetches**: checksum and directory listings survive
   transient 5xx/network errors with exponential backoff
-- **Local image inventory**: `qm-template images` lists downloaded images with
-  their size and checksum sidecar, and `--prune` removes superseded dated
-  builds and orphaned checksum files
 - **Complete `qm create` command**: the whole template is assembled into a
   single `qm create ... --template 1` invocation instead of a chain of
   `qm set` calls
@@ -106,12 +103,6 @@ qm-template download --dry-run alpine
 # hide the downloader progress output
 qm-template download --quiet alpine
 
-# list downloaded images with size and checksum sidecar
-qm-template images
-
-# remove superseded dated builds and orphaned checksum files
-qm-template images --prune
-
 # list distros and their configured defaults
 qm-template distros
 ```
@@ -122,19 +113,13 @@ Builds are pinned where the upstream provides dated snapshots (Debian, Ubuntu
 server, Arch Linux, openSUSE Tumbleweed): the newest build is selected, and a
 newer build is downloaded alongside the old one instead of overwriting it.
 Interrupted downloads are resumed on the next run; partial files are stored as
-`<image>.part`. A failed download falls back to the next configured downloader
-and is retried from scratch; a completed download that fails checksum
-verification is downloaded once more from scratch before the command fails.
-Checksum files and directory listings are retried with exponential backoff on
-transient 5xx and network errors. The checksum fetched from the upstream source
-is saved next to the image as `<image>.sha256` or `<image>.sha512`, depending on
-the upstream algorithm.
-
-`qm-template images [pattern]` prints one line per image with a human-readable
-size and the checksum sidecar algorithm. `--prune` removes older builds whose
-names differ only in build dates/versions, together with their checksum
-sidecars, plus checksum files whose image is gone; it asks for confirmation
-unless `--yes` is passed, and `--dry-run` only lists the files it would remove.
+`<image>.part`. A failed download is retried from scratch with the same
+downloader and never switches to another one; a completed download that fails
+checksum verification is downloaded once more from scratch before the command
+fails. Checksum files and directory listings are retried with exponential
+backoff on transient 5xx and network errors. The checksum fetched from the
+upstream source is saved next to the image as `<image>.sha256` or
+`<image>.sha512`, depending on the upstream algorithm.
 
 ### Create a VM template
 
@@ -222,13 +207,13 @@ qm-template/
 ├── qm-template.example.toml
 ├── src/qm_template/
 │   ├── cli.py          # argument parsing and entry point
-│   ├── commands.py     # download / create / images / distros commands
+│   ├── commands.py     # download / create / distros commands
 │   ├── config.py       # TOML settings and first-run config seeding
 │   ├── checksum.py     # checksum parsing and verification
 │   ├── config.default.toml  # default configuration shipped in the wheel
 │   ├── download.py     # axel / aria2c / wget / curl wrappers
 │   ├── http.py         # HTTP helpers, retries and directory listings
-│   ├── images.py       # local image inventory and pruning
+│   ├── images.py       # local image discovery
 │   ├── log.py          # logging setup
 │   ├── pve.py          # qm/pvesm integration and VM ID selection
 │   ├── shell.py        # grouped command rendering and execution

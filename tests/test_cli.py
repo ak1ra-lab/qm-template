@@ -117,92 +117,6 @@ def test_create_dry_run_prints_pretty_command(
     assert output.rstrip().endswith("--template 1")
 
 
-def test_images_lists_local_images(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    images = tmp_path / "images"
-    image = images / "debian" / "trixie" / "20260901-2590" / "debian.qcow2"
-    image.parent.mkdir(parents=True)
-    image.write_bytes(b"x" * 2048)
-    (image.with_name("debian.qcow2.sha256")).write_text("")
-    config = write_config(tmp_path, images)
-    assert main(["images", "--config", str(config)]) == 0
-    output = capsys.readouterr().out
-    assert "2.0 KiB" in output
-    assert "sha256" in output
-    assert "debian/trixie/20260901-2590/debian.qcow2" in output
-
-
-def test_images_reports_empty_directory(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    images = tmp_path / "images"
-    images.mkdir()
-    config = write_config(tmp_path, images)
-    assert main(["images", "--config", str(config)]) == 0
-    assert capsys.readouterr().out == ""
-
-
-def test_images_prune_dry_run_lists_superseded(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    images = tmp_path / "images"
-    base = images / "debian" / "trixie"
-    old = base / "20260831-2587" / "debian-13-genericcloud-amd64-20260831-2587.qcow2"
-    new = base / "20260901-2590" / "debian-13-genericcloud-amd64-20260901-2590.qcow2"
-    for path in (old, new):
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(b"")
-        path.with_name(path.name + ".sha512").write_text("")
-    config = write_config(tmp_path, images)
-    assert main(["images", "--prune", "--dry-run", "--config", str(config)]) == 0
-    output = capsys.readouterr().out
-    assert str(old.relative_to(images)) in output
-    assert str(new.relative_to(images)) not in output
-    assert old.is_file()
-    assert new.is_file()
-
-
-def test_images_prune_removes_superseded_with_yes(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    images = tmp_path / "images"
-    base = images / "debian" / "trixie"
-    old = base / "20260831-2587" / "debian.qcow2"
-    new = base / "20260901-2590" / "debian.qcow2"
-    for path in (old, new):
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(b"")
-        path.with_name(path.name + ".sha512").write_text("")
-    orphan = base / "missing.qcow2.sha256"
-    orphan.write_text("")
-    config = write_config(tmp_path, images)
-    assert main(["images", "--prune", "--yes", "--config", str(config)]) == 0
-    assert not old.exists()
-    assert not old.with_name(old.name + ".sha512").exists()
-    assert not orphan.exists()
-    assert new.is_file()
-    assert new.with_name(new.name + ".sha512").is_file()
-    assert "Removed 3 file(s)" in capsys.readouterr().err
-
-
-def test_images_prune_can_be_cancelled(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    images = tmp_path / "images"
-    base = images / "debian" / "trixie"
-    old = base / "20260831-2587" / "debian.qcow2"
-    new = base / "20260901-2590" / "debian.qcow2"
-    for path in (old, new):
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(b"")
-    monkeypatch.setattr("sys.stdin", io.StringIO("n\n"))
-    config = write_config(tmp_path, images)
-    assert main(["images", "--prune", "--config", str(config)]) == 0
-    assert old.is_file()
-    assert "cancelled" in capsys.readouterr().err
-
-
 def test_create_picks_next_free_vm_id(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -335,7 +249,7 @@ def test_download_skips_an_already_verified_image(
         "qm_template.commands.fetch_checksum", lambda _url, _name: digest
     )
     monkeypatch.setattr(
-        "qm_template.commands.select_downloaders", lambda *_args, **_kwargs: []
+        "qm_template.commands.select_downloader", lambda *_args, **_kwargs: None
     )
     assert main(["download", "alpine", "--config", str(config)]) == 0
     captured = capsys.readouterr()
@@ -381,10 +295,10 @@ def test_download_replaces_a_corrupt_existing_image(
         "qm_template.commands.fetch_checksum", lambda _url, _name: digest
     )
     monkeypatch.setattr(
-        "qm_template.commands.select_downloaders", lambda *_args, **_kwargs: []
+        "qm_template.commands.select_downloader", lambda *_args, **_kwargs: None
     )
 
-    def fake_verified(_image, destination, _downloaders, _expected):
+    def fake_verified(_image, destination, _downloader, _expected):
         part = part_path(destination)
         part.write_bytes(b"good")
         return part
@@ -446,15 +360,3 @@ def test_create_reports_success(
     monkeypatch.setattr("qm_template.commands.run_qm", lambda _command: None)
     assert main(["create", "--vm-id", "9000", "--config", str(config)]) == 0
     assert "created" in capsys.readouterr().err
-
-
-def test_images_prune_reports_nothing_to_do(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    images = tmp_path / "images"
-    image = images / "alpine" / "3.24" / "alpine.qcow2"
-    image.parent.mkdir(parents=True)
-    image.write_bytes(b"")
-    config = write_config(tmp_path, images)
-    assert main(["images", "--prune", "--config", str(config)]) == 0
-    assert "Nothing to prune" in capsys.readouterr().err

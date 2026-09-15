@@ -1,5 +1,5 @@
 import argparse
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -11,17 +11,10 @@ from qm_template.download import (
     Downloader,
     download_image,
     part_path,
-    select_downloaders,
+    select_downloader,
 )
-from qm_template.errors import QmTemplateError, UserCancelled
-from qm_template.images import (
-    checksum_sidecar,
-    find_images,
-    human_size,
-    image_sidecars,
-    orphaned_sidecars,
-    superseded_images,
-)
+from qm_template.errors import QmTemplateError
+from qm_template.images import find_images
 from qm_template.log import log
 from qm_template.pve import (
     MIN_VM_ID,
@@ -30,7 +23,6 @@ from qm_template.pve import (
     choose_image,
     default_vm_name,
     next_vm_id,
-    prompt,
     run_qm,
     sshkeys_file,
     used_vm_ids,
@@ -65,13 +57,13 @@ def add_download_arguments(parser: argparse.ArgumentParser) -> None:
 def _download_verified(
     image: RemoteImage,
     destination: Path,
-    downloaders: list[Downloader],
+    downloader: Downloader,
     expected: str,
 ) -> Path:
     for attempt in range(1, 3):
         if attempt > 1:
             log.warning("Checksum mismatch, downloading again from scratch")
-        part = download_image(image, destination, downloaders)
+        part = download_image(image, destination, downloader)
         log.info("Verifying checksum")
         if verify_checksum(part, expected, image.algorithm):
             return part
@@ -102,11 +94,11 @@ def run_download(args: argparse.Namespace, settings: Settings) -> None:
     log.debug("Checksum: %s (%s)", image.checksum_url, image.algorithm)
     destination = settings.images_dir / image.local_path
     quiet = settings.download.quiet if args.quiet is None else args.quiet
-    downloaders = select_downloaders(
+    downloader = select_downloader(
         settings.download.preferred, settings.download.connections, quiet=quiet
     )
     if args.dry_run:
-        print(pretty(downloaders[0].build_command(image.url, part_path(destination))))
+        print(pretty(downloader.build_command(image.url, part_path(destination))))
         return
     destination.parent.mkdir(parents=True, exist_ok=True)
     expected = fetch_checksum(image.checksum_url, image.filename)
@@ -117,7 +109,7 @@ def run_download(args: argparse.Namespace, settings: Settings) -> None:
             return
         log.warning("Checksum mismatch for %s, removing it", destination)
         destination.unlink()
-    part = _download_verified(image, destination, downloaders, expected)
+    part = _download_verified(image, destination, downloader, expected)
     part.replace(destination)
     save_checksum(destination, expected, image.algorithm)
     log.info("Saved %s", destination)
@@ -217,66 +209,6 @@ def run_distros(args: argparse.Namespace, settings: Settings) -> None:
         print(f"{distro.name:<12} {distro.description:<26} {rendered}")
 
 
-def add_images_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("pattern", nargs="?", help="regex to filter local images")
-    parser.add_argument(
-        "--prune",
-        action="store_true",
-        help="remove superseded builds and orphaned checksum files",
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="with --prune, list the files that would be removed",
-    )
-    parser.add_argument(
-        "-y",
-        "--yes",
-        action="store_true",
-        help="remove without asking for confirmation",
-    )
-
-
-def _print_images(images: Sequence[Path], directory: Path) -> None:
-    for image in images:
-        sidecar = checksum_sidecar(image)
-        algorithm = sidecar.suffix.lstrip(".") if sidecar else "-"
-        print(
-            f"{human_size(image.stat().st_size):>9}  {algorithm:<7}  "
-            f"{image.relative_to(directory)}"
-        )
-
-
-def run_images(args: argparse.Namespace, settings: Settings) -> None:
-    images = find_images(settings.images_dir, args.pattern, required=False)
-    if not args.prune:
-        if not images:
-            log.info("No cloud images found in %s", settings.images_dir)
-            return
-        _print_images(images, settings.images_dir)
-        return
-    superseded = superseded_images(images, settings.images_dir)
-    candidates = set(superseded) | set(orphaned_sidecars(settings.images_dir))
-    for image in superseded:
-        candidates.update(image_sidecars(image))
-    candidates = sorted(candidates)
-    if not candidates:
-        log.info("Nothing to prune in %s", settings.images_dir)
-        return
-    for path in candidates:
-        print(path.relative_to(settings.images_dir))
-    if args.dry_run:
-        log.info("%d file(s) would be removed", len(candidates))
-        return
-    if not args.yes:
-        answer = prompt(f"Remove {len(candidates)} file(s)? [y/N] ")
-        if answer.lower() not in {"y", "yes"}:
-            raise UserCancelled
-    for path in candidates:
-        path.unlink(missing_ok=True)
-    log.info("Removed %d file(s)", len(candidates))
-
-
 @dataclass(frozen=True)
 class Command:
     name: str
@@ -303,13 +235,6 @@ COMMANDS: tuple[Command, ...] = (
         run=run_create,
         description="Create a Proxmox VE VM template from a downloaded cloud image.",
         aliases=("template",),
-    ),
-    Command(
-        name="images",
-        help="list local images and prune superseded builds",
-        add_arguments=add_images_arguments,
-        run=run_images,
-        description="List downloaded cloud images, or prune superseded builds.",
     ),
     Command(
         name="distros",
