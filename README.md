@@ -4,8 +4,8 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/qm-template)](https://pypi.org/project/qm-template/)
 [![Docs](https://img.shields.io/badge/docs-online-0a7ea4)](https://ak1ra-lab.github.io/qm-template/)
 
-A Python CLI that downloads cloud images and creates Proxmox VE VM templates
-with Cloud-Init support.
+A Python CLI that downloads cloud images, creates Proxmox VE VM templates and
+prepares VirtualBox artifacts, with Cloud-Init support.
 
 ## Features
 
@@ -28,9 +28,13 @@ with Cloud-Init support.
   Proxmox config directory), starting at `create.start_id` (default 9000)
 - **Configurable CPU type**: `create.cpu`/`--cpu` overrides the default
   `cputype=host` when migration across CPU generations matters
+- **Local VM artifacts**: `prepare` converts an image to VDI, VMDK, QCOW2, raw
+  or VHDX with `qemu-img` and builds a NoCloud seed ISO with `genisoimage`,
+  both written next to the source image
 - **TOML configuration**: read with `tomllib` from the standard library
 - **Standard library only**: Python >= 3.11; external commands are limited to
-  the downloader and the Proxmox VE `qm`/`pvesm` tools
+  the downloader, the Proxmox VE `qm`/`pvesm` tools and `prepare`'s
+  `qemu-img`/`genisoimage`
 
 ## Requirements
 
@@ -39,6 +43,7 @@ with Cloud-Init support.
 - A Proxmox VE host, normally running as root
 - Proxmox VE (`qm`, `pvesm`) for the `create` command
 - One of `axel`, `aria2c`, `wget` or `curl` for the `download` command
+- `qemu-img` and `genisoimage` for the `prepare` command
 
 ## Installation
 
@@ -70,12 +75,12 @@ Downloaded images are stored in `/var/lib/qm-template` unless
 `download.preferred` orders the downloaders and `download.connections` sets the
 number of parallel connections for `axel` and `aria2c`. Downloads show progress
 by default; set `download.quiet = true` or pass `--quiet` to hide it.
-`create.cpu` sets the CPU type passed as `cputype=...` (default `host`).
-`create.start_id` and `create.step` drive automatic VM ID selection (default
-`9000` and `1`). `create.sshkeys` lists inline SSH public keys and
-`create.sshkeys_files` lists key files; the contents of both are merged and
-deduplicated by key fingerprint for Cloud-Init, and at least one key is
-required. To create the file manually instead:
+`cloudinit.user`/`password` configure the Cloud-Init user, and
+`cloudinit.sshkeys`/`sshkeys_files` list inline SSH public keys and key files
+whose contents are merged and deduplicated by fingerprint; at least one key is
+required. `create.cpu` sets the CPU type passed as `cputype=...` (default
+`host`), and `create.start_id`/`create.step` drive automatic VM ID selection
+(default `9000` and `1`). To create the file manually instead:
 
 ```shell
 install -d /etc/qm-template
@@ -175,6 +180,37 @@ qm create 9000 \
     --template 1
 ```
 
+### Prepare local VM artifacts
+
+Most hypervisors cannot boot `.qcow2` directly, so guest disks have to be
+converted. The hypervisor-agnostic `prepare` command selects a downloaded
+image, converts it to a guest disk with `qemu-img` and packs a NoCloud
+`user-data`/`meta-data` pair built from the `[cloudinit]` settings into a
+`CIDATA`-labelled seed ISO with `genisoimage`. Both artifacts are written next
+to the source image and only differ in suffix:
+
+```shell
+# debian-13.qcow2 -> debian-13.vdi + debian-13.iso
+qm-template prepare debian-13
+
+# other hypervisors: vmdk (VMware/VirtualBox), raw or vhdx (Hyper-V)
+qm-template prepare --format vmdk debian-13
+
+# override the hostname recorded in the seed
+qm-template prepare --vm-name debian-13-vbox debian-13
+
+# preview every command without running or writing anything
+qm-template prepare --dry-run debian-13
+```
+
+Supported formats are `vdi` (default), `vmdk`, `qcow2`, `raw` and `vhdx`; the
+extension follows the format (`--format vdi` writes `<image>.vdi`). Choosing
+`qcow2` for a `.qcow2` source is rejected because it would overwrite the source
+image. For VirtualBox, attach the `.vdi` as a SATA hard disk and the seed ISO
+as a CD-ROM. Use the `generic`/`genericcloud` image variants: Debian's
+`nocloud` variant does not run Cloud-Init. Existing artifacts are never
+overwritten unless `--force` is passed.
+
 ## Supported distros
 
 | Name        | Default release | Default variant | Notes                             |
@@ -207,9 +243,10 @@ qm-template/
 ├── qm-template.example.toml
 ├── src/qm_template/
 │   ├── cli.py          # argument parsing and entry point
-│   ├── commands.py     # download / create / distros commands
+│   ├── commands.py     # download / create / prepare / distros commands
 │   ├── config.py       # TOML settings and first-run config seeding
 │   ├── checksum.py     # checksum parsing and verification
+│   ├── cloudinit.py    # SSH key collection and seed user-data/meta-data
 │   ├── config.default.toml  # default configuration shipped in the wheel
 │   ├── download.py     # axel / aria2c / wget / curl wrappers
 │   ├── http.py         # HTTP helpers, retries and directory listings
@@ -217,6 +254,7 @@ qm-template/
 │   ├── log.py          # logging setup
 │   ├── pve.py          # qm/pvesm integration and VM ID selection
 │   ├── shell.py        # grouped command rendering and execution
+│   ├── prepare.py      # qemu-img / genisoimage wrappers
 │   └── distros/        # one module per distro family
 └── tests/
 ```

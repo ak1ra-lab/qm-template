@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from qm_template.config import CreateSettings
+from qm_template.config import CloudInitSettings, CreateSettings
 from qm_template.errors import QmTemplateError, UserCancelled
 from qm_template.pve import (
     MIN_VM_ID,
@@ -15,7 +15,6 @@ from qm_template.pve import (
     next_vm_id,
     prompt,
     run_qm,
-    sshkeys_file,
     used_vm_ids,
     vm_config_path,
 )
@@ -52,11 +51,15 @@ def test_build_qm_create_is_single_complete_command():
         memory=4096,
         cpu="x86-64-v2-AES",
         bridge="vmbr1",
-        ciuser="admin",
-        cipassword="secret",
     )
+    cloudinit = CloudInitSettings(user="admin", password="secret")
     command = build_qm_create(
-        9000, "debian-template", Path("/images/x.qcow2"), Path("/keys.pub"), settings
+        9000,
+        "debian-template",
+        Path("/images/x.qcow2"),
+        Path("/keys.pub"),
+        settings,
+        cloudinit,
     )
     assert ["qm", "create", "9000"] == command[0]
     assert flatten(command).count("qm") == 1
@@ -183,58 +186,3 @@ def test_run_qm_succeeds(monkeypatch):
         lambda *_args, **_kwargs: SimpleNamespace(returncode=0),
     )
     run_qm([["qm", "create", "9000"]])
-
-
-def test_sshkeys_merges_and_dedupes_inline_and_files(tmp_path):
-    keys = tmp_path / "id_ed25519.pub"
-    keys.write_text(
-        "ssh-ed25519 CCCC\n# comment\n\nssh-ed25519 AAAA alt-comment\n"
-        "ssh-rsa not@base64@\n"
-    )
-    settings = CreateSettings(
-        sshkeys=("ssh-ed25519 AAAA", "ssh-ed25519 BBBB"),
-        sshkeys_files=(str(keys), str(tmp_path / "missing.pub")),
-    )
-    with sshkeys_file(settings) as path:
-        assert (
-            path.read_text() == "ssh-ed25519 AAAA\nssh-ed25519 BBBB\nssh-ed25519 CCCC\n"
-        )
-    assert not path.exists()
-
-
-def test_sshkeys_without_inline_uses_file(tmp_path):
-    keys = tmp_path / "id_ed25519.pub"
-    keys.write_text("ssh-ed25519 CCCC\n")
-    settings = CreateSettings(sshkeys=(), sshkeys_files=(str(keys),))
-    with sshkeys_file(settings) as path:
-        assert path.read_text() == "ssh-ed25519 CCCC\n"
-    assert not path.exists()
-
-
-def test_sshkeys_unreadable_file_is_skipped(tmp_path):
-    settings = CreateSettings(sshkeys_files=(str(tmp_path / "missing.pub"),))
-    with pytest.raises(QmTemplateError):
-        with sshkeys_file(settings):
-            pass
-
-
-def test_sshkeys_invalid_file_line_is_skipped(tmp_path):
-    keys = tmp_path / "id_ed25519.pub"
-    keys.write_text("ssh-ed25519 CCCC\ngarbage line\n")
-    settings = CreateSettings(sshkeys_files=(str(keys),))
-    with sshkeys_file(settings) as path:
-        assert path.read_text() == "ssh-ed25519 CCCC\n"
-
-
-def test_sshkeys_require_a_source():
-    settings = CreateSettings(sshkeys=(), sshkeys_files=())
-    with pytest.raises(QmTemplateError):
-        with sshkeys_file(settings):
-            pass
-
-
-def test_sshkeys_invalid_inline_entry_raises():
-    settings = CreateSettings(sshkeys=("not-a-key",))
-    with pytest.raises(QmTemplateError):
-        with sshkeys_file(settings):
-            pass

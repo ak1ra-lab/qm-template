@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add `qm-template prepare` to build local VM artifacts from a downloaded
+  image: `qemu-img` converts it to a guest disk (`--format vdi` (default),
+  `vmdk`, `qcow2`, `raw` or `vhdx`) and a NoCloud `user-data`/`meta-data` pair
+  built from the Cloud-Init settings is packed into a `CIDATA`-labelled seed
+  ISO with `genisoimage`. Both artifacts are written next to the source image
+  with the same stem (`<image>.qcow2` becomes `<image>.vdi` and
+  `<image>.iso`); `--vm-name`, `--force` and `--dry-run` are supported.
+
+### Changed
+
+- Move the Cloud-Init settings out of `[create]` into a new top-level
+  `[cloudinit]` section and drop the redundant `ci` prefix (`user`,
+  `password`, `sshkeys`, `sshkeys_files`), since they are shared by `create`
+  and `prepare`; `[create]` keeps the Proxmox-specific keys.
+
 ### Removed
 
 - Remove the `qm-template images` command and its `--prune`/`--dry-run`/`--yes`

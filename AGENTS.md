@@ -1,12 +1,15 @@
 # AGENTS.md
 
-`qm-template` is a Python CLI that downloads distro cloud images and creates
-Proxmox VE VM templates. It targets a Proxmox VE host and is normally run as
-root. Application code lives under `src/qm_template`.
+`qm-template` is a Python CLI that downloads distro cloud images, creates
+Proxmox VE VM templates and prepares local VM artifacts (disk plus NoCloud
+seed ISO). The `create` command targets a Proxmox VE host and is normally run
+as root; `prepare` typically runs on a workstation. Application code lives
+under `src/qm_template`.
 
 `download` shells out to `axel`/`aria2c`/`wget`/`curl`; `create` shells out to
-Proxmox VE (`qm`, `pvesm`). Neither must be exercised in tests - tests mock or
-only cover pure logic.
+Proxmox VE (`qm`, `pvesm`); `prepare` shells out to `qemu-img`/`genisoimage`.
+None of these must be exercised in tests - tests mock or only cover pure
+logic.
 
 ## Tooling
 
@@ -36,7 +39,7 @@ PyPI.
 
 ## Conventions
 
-- CLI: `argparse` with `download`, `create` and `distros` subcommands;
+- CLI: `argparse` with `download`, `create`, `prepare` and `distros` subcommands;
   entrypoint `qm-template`. Runtime dependencies stay empty (standard library
   only).
 - Defaults: config `/etc/qm-template/config.toml`, images

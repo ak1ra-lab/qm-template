@@ -1,10 +1,12 @@
 import argparse
+import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
 
 from qm_template import PROGRAM
 from qm_template.checksum import fetch_checksum, save_checksum, verify_checksum
+from qm_template.cloudinit import collect_ssh_keys, meta_data, sshkeys_file, user_data
 from qm_template.config import Settings
 from qm_template.distros import DISTROS, RemoteImage
 from qm_template.download import (
@@ -16,6 +18,16 @@ from qm_template.download import (
 from qm_template.errors import QmTemplateError
 from qm_template.images import find_images
 from qm_template.log import log
+from qm_template.prepare import (
+    DEFAULT_FORMAT,
+    DISK_FORMATS,
+    GENISOIMAGE,
+    QEMU_IMG,
+    convert_command,
+    require_tool,
+    run_tool,
+    seed_iso_command,
+)
 from qm_template.pve import (
     MIN_VM_ID,
     build_qm_create,
@@ -24,7 +36,6 @@ from qm_template.pve import (
     default_vm_name,
     next_vm_id,
     run_qm,
-    sshkeys_file,
     used_vm_ids,
     vm_config_path,
 )
@@ -179,8 +190,10 @@ def run_create(args: argparse.Namespace, settings: Settings) -> None:
     )
 
     check_storage(create.storage)
-    with sshkeys_file(create) as sshkeys:
-        command = build_qm_create(vm_id, vm_name, image, sshkeys, create)
+    with sshkeys_file(settings.cloudinit) as sshkeys:
+        command = build_qm_create(
+            vm_id, vm_name, image, sshkeys, create, settings.cloudinit
+        )
         if args.dry_run:
             print(pretty(command))
             return
@@ -196,6 +209,73 @@ def run_create(args: argparse.Namespace, settings: Settings) -> None:
                 )
             raise
     log.info("Template %s (ID %d) created", vm_name, vm_id)
+
+
+def add_prepare_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("pattern", nargs="?", help="regex to filter local images")
+    parser.add_argument(
+        "--vm-name", help="VM name (derived from the image when omitted)"
+    )
+    parser.add_argument(
+        "--format",
+        choices=sorted(DISK_FORMATS),
+        default=DEFAULT_FORMAT,
+        help=f"guest disk format (default: {DEFAULT_FORMAT})",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="overwrite existing artifacts",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="print the commands and exit",
+    )
+
+
+def run_prepare(args: argparse.Namespace, settings: Settings) -> None:
+    images = find_images(settings.images_dir, args.pattern)
+    if len(images) == 1:
+        image = images[0]
+        log.info("Selected image: %s", image.name)
+    else:
+        image = choose_image(images, settings.images_dir)
+
+    vm_name = args.vm_name or default_vm_name(image)
+    cloudinit = settings.cloudinit
+    if not collect_ssh_keys(cloudinit):
+        raise QmTemplateError(
+            "no SSH keys configured; set cloudinit.sshkeys or cloudinit.sshkeys_files"
+        )
+    disk = image.with_suffix(DISK_FORMATS[args.format])
+    if disk == image:
+        raise QmTemplateError(
+            f"--format {args.format} would overwrite the source image; "
+            "choose a different format"
+        )
+    seed = image.with_suffix(".iso")
+    convert = convert_command(image, disk, args.format)
+    if args.dry_run:
+        print(pretty(convert))
+        print(pretty(seed_iso_command(Path("user-data"), Path("meta-data"), seed)))
+        return
+
+    require_tool(QEMU_IMG, package="qemu-utils")
+    require_tool(GENISOIMAGE, package="genisoimage")
+    for path in (disk, seed):
+        if path.exists() and not args.force:
+            raise QmTemplateError(f"{path} already exists (pass --force to overwrite)")
+        path.unlink(missing_ok=True)
+    with tempfile.TemporaryDirectory(prefix=f"{PROGRAM}-seed-") as staging:
+        staged = Path(staging)
+        (staged / "user-data").write_text(
+            user_data(cloudinit, vm_name), encoding="utf-8"
+        )
+        (staged / "meta-data").write_text(meta_data(vm_name), encoding="utf-8")
+        run_tool(convert)
+        run_tool(seed_iso_command(staged / "user-data", staged / "meta-data", seed))
+    log.info("Wrote %s and %s", disk, seed)
 
 
 def add_distros_arguments(parser: argparse.ArgumentParser) -> None:
@@ -235,6 +315,16 @@ COMMANDS: tuple[Command, ...] = (
         run=run_create,
         description="Create a Proxmox VE VM template from a downloaded cloud image.",
         aliases=("template",),
+    ),
+    Command(
+        name="prepare",
+        help="prepare local VM artifacts from a downloaded image",
+        add_arguments=add_prepare_arguments,
+        run=run_prepare,
+        description=(
+            "Convert a downloaded image to a hypervisor disk format and build a "
+            "NoCloud cloud-init seed ISO that can be attached as a CD-ROM."
+        ),
     ),
     Command(
         name="distros",

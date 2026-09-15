@@ -19,7 +19,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser = argparse.ArgumentParser(
         prog=PROGRAM,
-        description="Download cloud images and create Proxmox VE VM templates.",
+        description=(
+            "Download cloud images, create Proxmox VE VM templates and "
+            "prepare local VM artifacts."
+        ),
         parents=[common],
     )
     parser.add_argument(

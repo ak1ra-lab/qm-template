@@ -7,6 +7,7 @@
 - Proxmox VE 主机，通常以 root 身份运行
 - `create` 命令需要 Proxmox VE（`qm`、`pvesm`）
 - `download` 命令需要 `axel`、`aria2c`、`wget` 或 `curl` 之一
+- `prepare` 命令需要 `qemu-img` 和 `genisoimage`
 
 ## 安装
 
@@ -35,11 +36,12 @@ uv tool install .
 
 `download.preferred` 指定下载器优先级，`download.connections` 设置 `axel` 和
 `aria2c` 的并行连接数。默认显示下载进度，可用 `download.quiet = true` 或
-`--quiet` 关闭。`create.cpu` 设置传给 `qm` 的 CPU 类型（`cputype=...`，默认
-`host`，性能最好但无法跨 CPU 代际迁移）。`create.start_id` 和 `create.step`
-（默认 `9000` 和 `1`）控制 VM ID 的自动选择。`create.sshkeys` 以内联列表提供
-Cloud-Init 注入的 SSH 公钥，`create.sshkeys_files` 指向公钥文件列表，两者的内容会
-按 SSH 指纹合并去重，且至少需要配置一个公钥。也可以手动创建示例配置：
+`--quiet` 关闭。`cloudinit.user`/`password` 配置 Cloud-Init 用户，
+`cloudinit.sshkeys` 以内联列表提供注入的 SSH 公钥，`cloudinit.sshkeys_files`
+指向公钥文件列表，两者的内容会按 SSH 指纹合并去重，且至少需要配置一个公钥。
+`create.cpu` 设置传给 `qm` 的 CPU 类型（`cputype=...`，默认 `host`，性能最好但
+无法跨 CPU 代际迁移）。`create.start_id` 和 `create.step`（默认 `9000` 和 `1`）
+控制 VM ID 的自动选择。也可以手动创建示例配置：
 
 ```shell
 install -d /etc/qm-template
@@ -97,6 +99,33 @@ qm-template create --dry-run --vm-id 9000
 （回退到 `/etc/pve/qemu-server/*.conf`）收集已占用的 ID，并使用从
 `create.start_id`（默认 `9000`）开始、以 `create.step` 递增的首个空闲 ID。如果
 `qm create` 失败并留下了 VM 配置，会提示用于清理的 `qm destroy` 命令。
+
+## 准备本地虚拟机产物
+
+多数 hypervisor 无法直接启动 `.qcow2`，需要先转换磁盘格式。与 hypervisor 无关的
+`prepare` 命令会选择已下载镜像，用 `qemu-img` 转换成客户机磁盘，并按 `[cloudinit]`
+配置生成 NoCloud 的 `user-data`/`meta-data`，再用 `genisoimage` 打包成卷标为
+`CIDATA` 的 seed ISO。两个产物与源镜像同目录存放，仅后缀不同：
+
+```shell
+# debian-13.qcow2 -> debian-13.vdi + debian-13.iso
+qm-template prepare debian-13
+
+# 其他 hypervisor：vmdk（VMware/VirtualBox）、raw 或 vhdx（Hyper-V）
+qm-template prepare --format vmdk debian-13
+
+# 覆盖 seed 中记录的主机名
+qm-template prepare --vm-name debian-13-vbox debian-13
+
+# 仅预览所有命令，不执行、不写入
+qm-template prepare --dry-run debian-13
+```
+
+支持的格式为 `vdi`（默认）、`vmdk`、`qcow2`、`raw` 和 `vhdx`，后缀随格式变化。
+源镜像是 `.qcow2` 时选择 `qcow2` 会被拒绝，因为会覆盖源镜像。VirtualBox 中把
+`.vdi` 挂为 SATA 硬盘、把 seed ISO 挂为 CD-ROM 即可。请使用
+`generic`/`genericcloud` 变体：Debian 的 `nocloud` 变体不运行 Cloud-Init。除非传入
+`--force`，已存在的产物不会被覆盖。
 
 ## 列出发行版
 

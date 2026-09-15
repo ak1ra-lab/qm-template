@@ -27,8 +27,10 @@ def test_builtin_defaults(tmp_path):
     assert settings.create.cpu == "host"
     assert settings.create.start_id == 9000
     assert settings.create.step == 1
-    assert settings.create.sshkeys == ()
-    assert settings.create.sshkeys_files == ()
+    assert settings.cloudinit.user == "debian"
+    assert settings.cloudinit.password == "debian"
+    assert settings.cloudinit.sshkeys == ()
+    assert settings.cloudinit.sshkeys_files == ()
 
 
 def test_default_config_path():
@@ -51,6 +53,12 @@ def test_parse_overrides():
                 "quiet": True,
                 "rocky": {"release": 10},
             },
+            "cloudinit": {
+                "user": "admin",
+                "password": "secret",
+                "sshkeys": ["ssh-ed25519 AAAA"],
+                "sshkeys_files": ["~/.ssh/id_ed25519.pub", "/etc/keys.pub"],
+            },
             "create": {
                 "storage": "local-zfs",
                 "cores": 4,
@@ -58,8 +66,6 @@ def test_parse_overrides():
                 "cpu": "x86-64-v2-AES",
                 "start_id": 9000,
                 "step": 10,
-                "sshkeys": ["ssh-ed25519 AAAA"],
-                "sshkeys_files": ["~/.ssh/id_ed25519.pub", "/etc/keys.pub"],
             },
         },
         source=Path("config.toml"),
@@ -75,8 +81,10 @@ def test_parse_overrides():
     assert settings.create.cpu == "x86-64-v2-AES"
     assert settings.create.start_id == 9000
     assert settings.create.step == 10
-    assert settings.create.sshkeys == ("ssh-ed25519 AAAA",)
-    assert settings.create.sshkeys_files == (
+    assert settings.cloudinit.user == "admin"
+    assert settings.cloudinit.password == "secret"
+    assert settings.cloudinit.sshkeys == ("ssh-ed25519 AAAA",)
+    assert settings.cloudinit.sshkeys_files == (
         "~/.ssh/id_ed25519.pub",
         "/etc/keys.pub",
     )
@@ -91,7 +99,7 @@ def test_write_default_config_creates_file(tmp_path):
     assert settings.create.cpu == "host"
     assert settings.create.start_id == 9000
     assert settings.create.step == 1
-    assert settings.create.sshkeys_files == ()
+    assert settings.cloudinit.sshkeys_files == ()
 
 
 def test_write_default_config_keeps_existing_file(tmp_path):
@@ -113,7 +121,8 @@ def test_unknown_keys_raise():
         {"creat": {}},
         {"paths": {"image_dir": "/tmp"}},
         {"download": {"prefered": ["wget"]}},
-        {"create": {"sshkeys_file": ["~/.ssh/id_ed25519.pub"]}},
+        {"cloudinit": {"sshkeys_file": ["~/.ssh/id_ed25519.pub"]}},
+        {"create": {"user": "admin"}},
     ):
         with pytest.raises(QmTemplateError):
             parse_settings(data, source=Path("config.toml"))
@@ -145,11 +154,11 @@ def test_invalid_types_raise():
         parse_settings({"download": {"quiet": "yes"}}, source=Path("config.toml"))
     with pytest.raises(QmTemplateError):
         parse_settings(
-            {"create": {"sshkeys": "ssh-ed25519 AAAA"}}, source=Path("config.toml")
+            {"cloudinit": {"sshkeys": "ssh-ed25519 AAAA"}}, source=Path("config.toml")
         )
     with pytest.raises(QmTemplateError):
         parse_settings(
-            {"create": {"sshkeys_files": "~/.ssh/id_ed25519.pub"}},
+            {"cloudinit": {"sshkeys_files": "~/.ssh/id_ed25519.pub"}},
             source=Path("config.toml"),
         )
 
@@ -157,22 +166,22 @@ def test_invalid_types_raise():
 def test_invalid_sshkey_entry_raises():
     with pytest.raises(QmTemplateError):
         parse_settings(
-            {"create": {"sshkeys": ["ssh-ed25519 AAAA", "AAAA not-a-key"]}},
+            {"cloudinit": {"sshkeys": ["ssh-ed25519 AAAA", "AAAA not-a-key"]}},
             source=Path("config.toml"),
         )
     with pytest.raises(QmTemplateError):
         parse_settings(
-            {"create": {"sshkeys": ["ssh-ed25519 !!!invalid!!!"]}},
+            {"cloudinit": {"sshkeys": ["ssh-ed25519 !!!invalid!!!"]}},
             source=Path("config.toml"),
         )
 
 
 def test_sshkey_entries_are_stripped():
     settings = parse_settings(
-        {"create": {"sshkeys": ["  ssh-ed25519 AAAA  "]}},
+        {"cloudinit": {"sshkeys": ["  ssh-ed25519 AAAA  "]}},
         source=Path("config.toml"),
     )
-    assert settings.create.sshkeys == ("ssh-ed25519 AAAA",)
+    assert settings.cloudinit.sshkeys == ("ssh-ed25519 AAAA",)
 
 
 def test_non_positive_connections_raise():

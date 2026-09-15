@@ -1,7 +1,7 @@
 # qm-template
 
-A Python CLI that downloads cloud images and creates Proxmox VE VM templates
-with Cloud-Init support.
+A Python CLI that downloads cloud images, creates Proxmox VE VM templates and
+prepares VirtualBox artifacts, with Cloud-Init support.
 
 ## Features
 
@@ -14,6 +14,9 @@ with Cloud-Init support.
 - **A single `qm create ... --template 1` command** instead of a chain of
   `qm set` calls, with automatic next free VM ID selection and a configurable
   CPU type.
+- **Local VM artifacts** with `qm-template prepare`: a hypervisor disk
+  conversion via `qemu-img` (VDI, VMDK, QCOW2, raw or VHDX) and a generated
+  NoCloud seed ISO, both next to the source image.
 - **TOML configuration** read with `tomllib` from the standard library.
 
 ## Quick start

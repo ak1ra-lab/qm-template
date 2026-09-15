@@ -1,6 +1,7 @@
 import hashlib
 import io
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -9,10 +10,13 @@ from qm_template.download import part_path
 from qm_template.errors import QmTemplateError
 
 
-def write_config(tmp_path: Path, images_dir: Path, create: str = "") -> Path:
+def write_config(
+    tmp_path: Path, images_dir: Path, create: str = "", cloudinit: str = ""
+) -> Path:
     config = tmp_path / "config.toml"
     config.write_text(
-        f'[paths]\nimages_dir = "{images_dir}"\n[create]\n{create}',
+        f'[paths]\nimages_dir = "{images_dir}"\n'
+        f"[create]\n{create}\n[cloudinit]\n{cloudinit}",
     )
     return config
 
@@ -101,7 +105,8 @@ def test_create_dry_run_prints_pretty_command(
     (images / "debian-13-genericcloud-amd64.qcow2").write_bytes(b"")
     config = tmp_path / "config.toml"
     config.write_text(
-        f'[paths]\nimages_dir = "{images}"\n[create]\nsshkeys = ["ssh-ed25519 AAAA"]\n'
+        f'[paths]\nimages_dir = "{images}"\n'
+        '[cloudinit]\nsshkeys = ["ssh-ed25519 AAAA"]\n'
     )
     monkeypatch.setattr(
         "qm_template.commands.vm_config_path",
@@ -128,7 +133,8 @@ def test_create_picks_next_free_vm_id(
     config = write_config(
         tmp_path,
         images,
-        'sshkeys = ["ssh-ed25519 AAAA"]\nstart_id = 9000\nstep = 5\n',
+        "start_id = 9000\nstep = 5\n",
+        'sshkeys = ["ssh-ed25519 AAAA"]\n',
     )
     monkeypatch.setattr("qm_template.commands.used_vm_ids", lambda: {9000, 9005})
     monkeypatch.setattr("qm_template.commands.check_storage", lambda _storage: None)
@@ -145,7 +151,9 @@ def test_create_rejects_an_used_vm_id(
     images = tmp_path / "images"
     images.mkdir()
     (images / "debian-13-genericcloud-amd64.qcow2").write_bytes(b"")
-    config = write_config(tmp_path, images, 'sshkeys = ["ssh-ed25519 AAAA"]\n')
+    config = write_config(
+        tmp_path, images, cloudinit='sshkeys = ["ssh-ed25519 AAAA"]\n'
+    )
     existing = tmp_path / "9000.conf"
     existing.write_text("")
     monkeypatch.setattr("qm_template.commands.vm_config_path", lambda vm_id: existing)
@@ -158,7 +166,9 @@ def test_create_rejects_invalid_resource_values(
     images = tmp_path / "images"
     images.mkdir()
     (images / "debian-13-genericcloud-amd64.qcow2").write_bytes(b"")
-    config = write_config(tmp_path, images, 'sshkeys = ["ssh-ed25519 AAAA"]\n')
+    config = write_config(
+        tmp_path, images, cloudinit='sshkeys = ["ssh-ed25519 AAAA"]\n'
+    )
     assert main(["create", "--cores", "0", "--config", str(config)]) == 1
     assert "cores must be a positive integer" in capsys.readouterr().err
     assert main(["create", "--memory", "0", "--config", str(config)]) == 1
@@ -172,12 +182,15 @@ def test_create_rejects_invalid_start_id(
     images.mkdir()
     (images / "debian-13-genericcloud-amd64.qcow2").write_bytes(b"")
     config = write_config(
-        tmp_path, images, 'sshkeys = ["ssh-ed25519 AAAA"]\nstart_id = 50\n'
+        tmp_path,
+        images,
+        "start_id = 50\n",
+        'sshkeys = ["ssh-ed25519 AAAA"]\n',
     )
     assert main(["create", "--config", str(config)]) == 1
     assert "start ID must be at least 100" in capsys.readouterr().err
     config = write_config(
-        tmp_path, images, 'sshkeys = ["ssh-ed25519 AAAA"]\nstep = 0\n'
+        tmp_path, images, "step = 0\n", 'sshkeys = ["ssh-ed25519 AAAA"]\n'
     )
     assert main(["create", "--config", str(config)]) == 1
     assert "step must be a positive integer" in capsys.readouterr().err
@@ -191,7 +204,9 @@ def test_create_reports_a_partially_created_vm(
     images = tmp_path / "images"
     images.mkdir()
     (images / "debian-13-genericcloud-amd64.qcow2").write_bytes(b"")
-    config = write_config(tmp_path, images, 'sshkeys = ["ssh-ed25519 AAAA"]\n')
+    config = write_config(
+        tmp_path, images, cloudinit='sshkeys = ["ssh-ed25519 AAAA"]\n'
+    )
     missing = tmp_path / "missing.conf"
     created = tmp_path / "9000.conf"
     state = {"created": False}
@@ -321,7 +336,9 @@ def test_create_prompts_when_multiple_images_match(
     images.mkdir()
     (images / "debian-13-genericcloud-amd64.qcow2").write_bytes(b"")
     (images / "debian-12-genericcloud-amd64.qcow2").write_bytes(b"")
-    config = write_config(tmp_path, images, 'sshkeys = ["ssh-ed25519 AAAA"]\n')
+    config = write_config(
+        tmp_path, images, cloudinit='sshkeys = ["ssh-ed25519 AAAA"]\n'
+    )
     monkeypatch.setattr("sys.stdin", io.StringIO("1\n"))
     monkeypatch.setattr("qm_template.commands.check_storage", lambda _storage: None)
     monkeypatch.setattr(
@@ -339,7 +356,9 @@ def test_create_rejects_vm_id_below_minimum(
     images = tmp_path / "images"
     images.mkdir()
     (images / "debian-13-genericcloud-amd64.qcow2").write_bytes(b"")
-    config = write_config(tmp_path, images, 'sshkeys = ["ssh-ed25519 AAAA"]\n')
+    config = write_config(
+        tmp_path, images, cloudinit='sshkeys = ["ssh-ed25519 AAAA"]\n'
+    )
     assert main(["create", "--vm-id", "50", "--config", str(config)]) == 1
     assert "VM ID must be at least 100" in capsys.readouterr().err
 
@@ -352,7 +371,9 @@ def test_create_reports_success(
     images = tmp_path / "images"
     images.mkdir()
     (images / "debian-13-genericcloud-amd64.qcow2").write_bytes(b"")
-    config = write_config(tmp_path, images, 'sshkeys = ["ssh-ed25519 AAAA"]\n')
+    config = write_config(
+        tmp_path, images, cloudinit='sshkeys = ["ssh-ed25519 AAAA"]\n'
+    )
     monkeypatch.setattr("qm_template.commands.check_storage", lambda _storage: None)
     monkeypatch.setattr(
         "qm_template.commands.vm_config_path", lambda vm_id: tmp_path / f"{vm_id}.conf"
@@ -360,3 +381,131 @@ def test_create_reports_success(
     monkeypatch.setattr("qm_template.commands.run_qm", lambda _command: None)
     assert main(["create", "--vm-id", "9000", "--config", str(config)]) == 0
     assert "created" in capsys.readouterr().err
+
+
+def test_prepare_dry_run_prints_commands(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    images = tmp_path / "images"
+    images.mkdir()
+    image = images / "debian-13-genericcloud-amd64.qcow2"
+    image.write_bytes(b"")
+    config = write_config(
+        tmp_path, images, cloudinit='sshkeys = ["ssh-ed25519 AAAA"]\n'
+    )
+    assert main(["prepare", "--dry-run", "--config", str(config)]) == 0
+    printed = capsys.readouterr().out
+    assert printed.startswith("qemu-img \\\n    convert \\\n    -O vdi \\\n")
+    assert str(image.with_suffix(".vdi")) in printed
+    assert "genisoimage \\\n" in printed
+    assert str(image.with_suffix(".iso")) in printed
+    assert "user-data" in printed
+    assert "VBoxManage" not in printed
+    assert not image.with_suffix(".vdi").exists()
+    assert not image.with_suffix(".iso").exists()
+
+
+def test_prepare_dry_run_honours_the_format(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    images = tmp_path / "images"
+    images.mkdir()
+    image = images / "debian-13-genericcloud-amd64.qcow2"
+    image.write_bytes(b"")
+    config = write_config(
+        tmp_path, images, cloudinit='sshkeys = ["ssh-ed25519 AAAA"]\n'
+    )
+    assert (
+        main(["prepare", "--format", "vmdk", "--dry-run", "--config", str(config)]) == 0
+    )
+    printed = capsys.readouterr().out
+    assert "-O vmdk" in printed
+    assert str(image.with_suffix(".vmdk")) in printed
+
+
+def test_prepare_rejects_a_format_that_overwrites_the_source(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    images = tmp_path / "images"
+    images.mkdir()
+    image = images / "debian-13-genericcloud-amd64.qcow2"
+    image.write_bytes(b"content")
+    config = write_config(
+        tmp_path, images, cloudinit='sshkeys = ["ssh-ed25519 AAAA"]\n'
+    )
+    assert main(["prepare", "--format", "qcow2", "--config", str(config)]) == 1
+    assert "overwrite the source image" in capsys.readouterr().err
+    assert image.read_bytes() == b"content"
+
+
+def test_prepare_requires_ssh_keys(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    images = tmp_path / "images"
+    images.mkdir()
+    (images / "debian-13-genericcloud-amd64.qcow2").write_bytes(b"")
+    config = write_config(tmp_path, images)
+    assert main(["prepare", "--config", str(config)]) == 1
+    assert "no SSH keys configured" in capsys.readouterr().err
+
+
+def test_prepare_runs_tools_with_staged_seed_files(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    images = tmp_path / "images"
+    images.mkdir()
+    image = images / "debian-13-genericcloud-amd64.qcow2"
+    image.write_bytes(b"")
+    config = write_config(
+        tmp_path, images, cloudinit='sshkeys = ["ssh-ed25519 AAAA"]\n'
+    )
+    calls: list[list[str]] = []
+    staged: dict[str, str] = {}
+
+    def fake_run(argv):
+        calls.append(argv)
+        if argv[0] == "genisoimage":
+            staged["user-data"] = Path(argv[-2]).read_text()
+            staged["meta-data"] = Path(argv[-1]).read_text()
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(
+        "qm_template.prepare.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+    monkeypatch.setattr("qm_template.prepare.subprocess.run", fake_run)
+    assert main(["prepare", "--config", str(config)]) == 0
+    assert [argv[0] for argv in calls] == ["qemu-img", "genisoimage"]
+    assert str(image.with_suffix(".vdi")) in calls[0]
+    assert str(image.with_suffix(".iso")) in calls[1]
+    assert "ssh-ed25519 AAAA" in staged["user-data"]
+    assert "instance-id" in staged["meta-data"]
+    assert capsys.readouterr().out == ""
+
+
+def test_prepare_refuses_to_overwrite_artifacts(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    images = tmp_path / "images"
+    images.mkdir()
+    image = images / "debian-13-genericcloud-amd64.qcow2"
+    image.write_bytes(b"")
+    vdi = image.with_suffix(".vdi")
+    vdi.write_bytes(b"old")
+    config = write_config(
+        tmp_path, images, cloudinit='sshkeys = ["ssh-ed25519 AAAA"]\n'
+    )
+    monkeypatch.setattr(
+        "qm_template.prepare.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+    monkeypatch.setattr(
+        "qm_template.prepare.subprocess.run",
+        lambda _argv: SimpleNamespace(returncode=0),
+    )
+    assert main(["prepare", "--config", str(config)]) == 1
+    assert "already exists" in capsys.readouterr().err
+    assert main(["prepare", "--force", "--config", str(config)]) == 0
+    assert not vdi.exists()

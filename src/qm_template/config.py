@@ -61,6 +61,14 @@ class DownloadSettings:
 
 
 @dataclass(frozen=True)
+class CloudInitSettings:
+    user: str = "debian"
+    password: str = "debian"
+    sshkeys: tuple[str, ...] = ()
+    sshkeys_files: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class CreateSettings:
     storage: str = "local-lvm"
     cores: int = 1
@@ -69,22 +77,21 @@ class CreateSettings:
     bridge: str = "vmbr0"
     start_id: int = 9000
     step: int = 1
-    ciuser: str = "debian"
-    cipassword: str = "debian"
-    sshkeys: tuple[str, ...] = ()
-    sshkeys_files: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
 class Settings:
     images_dir: Path = field(default_factory=default_images_dir)
     download: DownloadSettings = field(default_factory=DownloadSettings)
+    cloudinit: CloudInitSettings = field(default_factory=CloudInitSettings)
     create: CreateSettings = field(default_factory=CreateSettings)
 
 
 _DOWNLOAD_DEFAULTS = DownloadSettings()
+_CLOUDINIT_DEFAULTS = CloudInitSettings()
 _CREATE_DEFAULTS = CreateSettings()
 _DOWNLOAD_KEYS = frozenset(DownloadSettings.__dataclass_fields__) - {"defaults"}
+_CLOUDINIT_KEYS = frozenset(CloudInitSettings.__dataclass_fields__)
 _CREATE_KEYS = frozenset(CreateSettings.__dataclass_fields__)
 
 
@@ -157,7 +164,7 @@ def ssh_key_fingerprint(line: str) -> str | None:
 
 def _ssh_keys(table: Mapping[str, Any], key: str, source: Path) -> tuple[str, ...]:
     keys: list[str] = []
-    for value in _string_list(table, key, _CREATE_DEFAULTS.sshkeys, source):
+    for value in _string_list(table, key, _CLOUDINIT_DEFAULTS.sshkeys, source):
         stripped = value.strip()
         if not stripped.startswith(SSH_KEY_TYPE_PREFIXES) or not ssh_key_fingerprint(
             stripped
@@ -207,6 +214,18 @@ def _parse_download(table: Mapping[str, Any], source: Path) -> DownloadSettings:
     )
 
 
+def _parse_cloudinit(table: Mapping[str, Any], source: Path) -> CloudInitSettings:
+    _reject_unknown(table, _CLOUDINIT_KEYS, "cloudinit", source)
+    return CloudInitSettings(
+        user=_str(table, "user", _CLOUDINIT_DEFAULTS.user, source),
+        password=_str(table, "password", _CLOUDINIT_DEFAULTS.password, source),
+        sshkeys=_ssh_keys(table, "sshkeys", source),
+        sshkeys_files=_string_list(
+            table, "sshkeys_files", _CLOUDINIT_DEFAULTS.sshkeys_files, source
+        ),
+    )
+
+
 def _parse_create(table: Mapping[str, Any], source: Path) -> CreateSettings:
     _reject_unknown(table, _CREATE_KEYS, "create", source)
     return CreateSettings(
@@ -217,17 +236,11 @@ def _parse_create(table: Mapping[str, Any], source: Path) -> CreateSettings:
         bridge=_str(table, "bridge", _CREATE_DEFAULTS.bridge, source),
         start_id=_int(table, "start_id", _CREATE_DEFAULTS.start_id, source),
         step=_int(table, "step", _CREATE_DEFAULTS.step, source),
-        ciuser=_str(table, "ciuser", _CREATE_DEFAULTS.ciuser, source),
-        cipassword=_str(table, "cipassword", _CREATE_DEFAULTS.cipassword, source),
-        sshkeys=_ssh_keys(table, "sshkeys", source),
-        sshkeys_files=_string_list(
-            table, "sshkeys_files", _CREATE_DEFAULTS.sshkeys_files, source
-        ),
     )
 
 
 def parse_settings(data: Mapping[str, Any], source: Path) -> Settings:
-    _reject_unknown(data, {"paths", "download", "create"}, None, source)
+    _reject_unknown(data, {"paths", "download", "cloudinit", "create"}, None, source)
     paths = _table(data, "paths", source)
     _reject_unknown(paths, {"images_dir"}, "paths", source)
     images_dir_value = _str(paths, "images_dir", str(default_images_dir()), source)
@@ -235,6 +248,7 @@ def parse_settings(data: Mapping[str, Any], source: Path) -> Settings:
     return Settings(
         images_dir=images_dir,
         download=_parse_download(_table(data, "download", source), source),
+        cloudinit=_parse_cloudinit(_table(data, "cloudinit", source), source),
         create=_parse_create(_table(data, "create", source), source),
     )
 

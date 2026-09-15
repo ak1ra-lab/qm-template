@@ -1,20 +1,13 @@
-import contextlib
 import os
 import re
 import shlex
 import shutil
 import subprocess
 import sys
-import tempfile
-from collections.abc import Collection, Generator, Sequence
+from collections.abc import Collection, Sequence
 from pathlib import Path
 
-from qm_template import PROGRAM
-from qm_template.config import (
-    SSH_KEY_TYPE_PREFIXES,
-    CreateSettings,
-    ssh_key_fingerprint,
-)
+from qm_template.config import CloudInitSettings, CreateSettings
 from qm_template.errors import QmTemplateError, UserCancelled
 from qm_template.log import log
 from qm_template.shell import CommandGroups, flatten
@@ -106,64 +99,13 @@ def check_storage(storage: str) -> None:
         )
 
 
-def _write_keys_file(content: str) -> Path:
-    with tempfile.NamedTemporaryFile(
-        "w", prefix=f"{PROGRAM}-sshkeys-", delete=False
-    ) as handle:
-        handle.write(content)
-        return Path(handle.name)
-
-
-def _collect_ssh_keys(settings: CreateSettings) -> str | None:
-    keys: list[str] = []
-    seen: set[str] = set()
-
-    def add(value: str, *, strict: bool) -> None:
-        line = value.strip()
-        if not line or line.startswith("#"):
-            return
-        fingerprint = ssh_key_fingerprint(line)
-        if not line.startswith(SSH_KEY_TYPE_PREFIXES) or fingerprint is None:
-            if strict:
-                raise QmTemplateError(f"{line!r} does not look like an SSH public key")
-            log.warning("Skipping invalid SSH key line: %r", line)
-            return
-        if fingerprint not in seen:
-            seen.add(fingerprint)
-            keys.append(line)
-
-    for value in settings.sshkeys:
-        add(value, strict=True)
-    for configured in settings.sshkeys_files:
-        path = Path(os.path.expandvars(configured)).expanduser()
-        if not path.is_file() or not os.access(path, os.R_OK):
-            log.warning("SSH keys file is not readable: %s", path)
-            continue
-        for line in path.read_text().splitlines():
-            add(line, strict=False)
-    return "\n".join(keys) + "\n" if keys else None
-
-
-@contextlib.contextmanager
-def sshkeys_file(settings: CreateSettings) -> Generator[Path, None, None]:
-    content = _collect_ssh_keys(settings)
-    if content is None:
-        raise QmTemplateError(
-            "no SSH keys configured; set create.sshkeys or create.sshkeys_files"
-        )
-    temporary = _write_keys_file(content)
-    try:
-        yield temporary
-    finally:
-        temporary.unlink(missing_ok=True)
-
-
 def build_qm_create(
     vm_id: int,
     vm_name: str,
     image: Path,
     sshkeys: Path,
     settings: CreateSettings,
+    cloudinit: CloudInitSettings,
 ) -> CommandGroups:
     storage = settings.storage
     return [
@@ -185,8 +127,8 @@ def build_qm_create(
         ["--boot", "order=scsi0"],
         ["--ipconfig0", "ip=dhcp"],
         ["--ciupgrade", "0"],
-        ["--ciuser", settings.ciuser],
-        ["--cipassword", settings.cipassword],
+        ["--ciuser", cloudinit.user],
+        ["--cipassword", cloudinit.password],
         ["--sshkeys", str(sshkeys)],
         ["--template", "1"],
     ]
