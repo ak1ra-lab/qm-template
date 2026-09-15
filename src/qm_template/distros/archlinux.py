@@ -8,7 +8,7 @@ class ArchLinux(Distro):
     description = "Arch Linux"
     options = {
         "release": Option("latest", note="latest or a build, e.g. v20260901.583572"),
-        "variant": Option("cloudimg", ("cloudimg", "basic")),
+        "variant": Option("cloudimg", ("cloudimg",)),
         "arch": Option("x86_64", ("x86_64",)),
         "base_url": Option(
             "https://geo.mirror.pkgbuild.com/images",

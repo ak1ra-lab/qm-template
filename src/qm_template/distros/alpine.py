@@ -21,11 +21,12 @@ class Alpine(Distro):
         release = params["release"]
         variant = params["variant"]
         arch = params["arch"]
+        firmware = "bios" if arch == "x86_64" else "uefi"
         base = f"{params['base_url']}/v{release}/releases/cloud/"
         filename = self.newest_in(
             base,
             rf"{re.escape(variant)}_alpine-{re.escape(release)}\.\d+"
-            rf"-{re.escape(arch)}-bios-cloudinit-r0\.qcow2",
+            rf"-{re.escape(arch)}-{firmware}-cloudinit-r0\.qcow2",
         )
         return RemoteImage(
             distro=self.name,

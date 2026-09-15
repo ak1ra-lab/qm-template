@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from qm_template.distros import DISTROS
+from qm_template.distros.alpine import Alpine
 from qm_template.distros.archlinux import ArchLinux
 from qm_template.distros.base import RemoteImage
 from qm_template.distros.debian import Debian
@@ -212,6 +213,33 @@ def test_archlinux_accepts_explicit_build(monkeypatch):
     assert image.local_path == Path(
         "archlinux/v20260901.583572/Arch-Linux-x86_64-cloudimg.qcow2"
     )
+
+
+def test_archlinux_rejects_basic_variant():
+    with pytest.raises(QmTemplateError, match="choose from"):
+        DISTROS["archlinux"].merge({}, {"variant": "basic"})
+
+
+def test_alpine_aarch64_resolves_uefi_images(monkeypatch):
+    listing = [
+        "generic_alpine-3.24.1-aarch64-uefi-cloudinit-r0.qcow2",
+        "generic_alpine-3.24.1-aarch64-uefi-tiny-r0.qcow2",
+    ]
+    monkeypatch.setattr("qm_template.distros.base.list_directory", lambda url: listing)
+    distro = Alpine()
+    image = distro.resolve(distro.merge({}, {"arch": "aarch64"}))
+    assert image.filename == "generic_alpine-3.24.1-aarch64-uefi-cloudinit-r0.qcow2"
+
+
+def test_alpine_x86_64_resolves_bios_images(monkeypatch):
+    listing = [
+        "generic_alpine-3.24.1-x86_64-bios-cloudinit-r0.qcow2",
+        "generic_alpine-3.24.1-x86_64-uefi-cloudinit-r0.qcow2",
+    ]
+    monkeypatch.setattr("qm_template.distros.base.list_directory", lambda url: listing)
+    distro = Alpine()
+    image = distro.resolve(distro.merge({}, {}))
+    assert image.filename == "generic_alpine-3.24.1-x86_64-bios-cloudinit-r0.qcow2"
 
 
 def test_opensuse_tumbleweed_prefers_snapshot(monkeypatch):
