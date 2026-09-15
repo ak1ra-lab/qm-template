@@ -1,16 +1,27 @@
 from collections.abc import Mapping
 
-from qm_template.distros.base import Distro, RemoteImage
+from qm_template.distros.base import Distro, Option, RemoteImage
 from qm_template.errors import QmTemplateError
 
 
 class Debian(Distro):
     name = "debian"
     description = "Debian GNU/Linux"
-    defaults = {"release": "trixie", "variant": "genericcloud", "arch": "amd64"}
-    supports_tag = True
+    options = {
+        "release": Option(
+            "trixie",
+            ("buster", "bullseye", "bookworm", "trixie", "forky"),
+            suffix=("-backports",),
+        ),
+        "variant": Option("genericcloud", ("generic", "genericcloud")),
+        "arch": Option("amd64", ("amd64", "arm64")),
+        "tag": Option("", note="dated build; the newest is used when omitted"),
+        "base_url": Option(
+            "https://cdimage.debian.org/images/cloud",
+            note="upstream or mirror base URL",
+        ),
+    }
 
-    base_url = "https://cdimage.debian.org/images/cloud"
     versions = {
         "buster": "10",
         "bullseye": "11",
@@ -33,7 +44,7 @@ class Debian(Distro):
     def resolve(self, params: Mapping[str, str]) -> RemoteImage:
         release = params["release"]
         version = self.version(release)
-        base = f"{self.base_url}/{release}/"
+        base = f"{params['base_url']}/{release}/"
         tag = params.get("tag") or self.newest_in(base, r"\d{8}-\d+")
         filename = f"debian-{version}-{params['variant']}-{params['arch']}-{tag}.qcow2"
         return RemoteImage(

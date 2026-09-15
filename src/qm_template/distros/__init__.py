@@ -1,6 +1,6 @@
 from qm_template.distros.alpine import Alpine
 from qm_template.distros.archlinux import ArchLinux
-from qm_template.distros.base import Distro, RemoteImage
+from qm_template.distros.base import Distro, Option, RemoteImage
 from qm_template.distros.debian import Debian
 from qm_template.distros.opensuse import OpenSUSE
 from qm_template.distros.redhat import AlmaLinux, CentOSStream, Fedora, RockyLinux
@@ -21,4 +21,4 @@ DISTROS: dict[str, Distro] = {
     )
 }
 
-__all__ = ["DISTROS", "Distro", "RemoteImage"]
+__all__ = ["DISTROS", "Distro", "Option", "RemoteImage"]

@@ -84,11 +84,27 @@ def test_debian_pins_newest_build(monkeypatch):
 
 def test_merge_applies_overrides():
     params = DISTROS["rocky"].merge({"release": "9"}, {"variant": "GenericCloud-LVM"})
-    assert params == {
-        "release": "9",
-        "variant": "GenericCloud-LVM",
-        "arch": "x86_64",
-    }
+    assert params["release"] == "9"
+    assert params["variant"] == "GenericCloud-LVM"
+    assert params["arch"] == "x86_64"
+    assert params["base_url"] == "https://dl.rockylinux.org/pub/rocky"
+
+
+def test_base_url_override_changes_image_and_checksum_urls(monkeypatch):
+    monkeypatch.setattr(
+        "qm_template.distros.base.list_directory", lambda _url: ["20260413-2447"]
+    )
+    distro = Debian()
+    image = distro.resolve(
+        distro.merge({"base_url": "https://mirror.example/debian"}, {})
+    )
+    assert image.url == (
+        "https://mirror.example/debian/trixie/20260413-2447/"
+        "debian-13-genericcloud-amd64-20260413-2447.qcow2"
+    )
+    assert image.checksum_url == (
+        "https://mirror.example/debian/trixie/20260413-2447/SHA512SUMS"
+    )
 
 
 def test_redhat_family_defaults_to_release_10():
@@ -114,6 +130,30 @@ def test_almalinux_pins_newest_dated_build(monkeypatch):
 def test_merge_rejects_unknown_parameter():
     with pytest.raises(QmTemplateError):
         DISTROS["debian"].merge({"typo": "x"}, {})
+
+
+def test_merge_rejects_invalid_choice():
+    with pytest.raises(QmTemplateError, match="choose from"):
+        DISTROS["debian"].merge({"variant": "desktop"}, {})
+
+
+def test_merge_rejects_unsupported_tag():
+    with pytest.raises(QmTemplateError, match="unknown parameter 'tag'"):
+        DISTROS["rocky"].merge({"tag": "1"}, {})
+
+
+def test_option_accepts_suffix_and_free_form_values():
+    release = DISTROS["debian"].options["release"]
+    assert release.accepts("bookworm")
+    assert release.accepts("bookworm-backports")
+    assert not release.accepts("etch")
+    assert DISTROS["rocky"].options["release"].accepts("11")
+    assert "bookworm-backports" in release.completions("bookworm")
+
+
+def test_declared_options_cover_defaults():
+    for distro in DISTROS.values():
+        assert set(distro.defaults) <= set(distro.options)
 
 
 def test_ubuntu_server_pins_newest_dated_build(monkeypatch):

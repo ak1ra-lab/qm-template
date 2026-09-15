@@ -1,16 +1,23 @@
 import re
 from collections.abc import Mapping
 
-from qm_template.distros.base import Distro, RemoteImage
+from qm_template.distros.base import Distro, Option, RemoteImage
 from qm_template.errors import QmTemplateError
 
 
 class RockyLinux(Distro):
     name = "rocky"
     description = "Rocky Linux"
-    defaults = {"release": "10", "variant": "GenericCloud", "arch": "x86_64"}
+    options = {
+        "release": Option("10", note="major version, e.g. 9, 10"),
+        "variant": Option("GenericCloud", ("GenericCloud", "GenericCloud-LVM")),
+        "arch": Option("x86_64", ("x86_64", "aarch64")),
+        "base_url": Option(
+            "https://dl.rockylinux.org/pub/rocky",
+            note="upstream or mirror base URL",
+        ),
+    }
 
-    base_url = "https://dl.rockylinux.org/pub/rocky"
     variants = {
         "GenericCloud": "GenericCloud-Base",
         "GenericCloud-LVM": "GenericCloud-LVM",
@@ -27,7 +34,7 @@ class RockyLinux(Distro):
             raise QmTemplateError(
                 f"unknown Rocky Linux variant {variant!r} (supported: {supported})"
             ) from None
-        base = f"{self.base_url}/{release}/images/{arch}/"
+        base = f"{params['base_url']}/{release}/images/{arch}/"
         filename = self.newest_in(
             base,
             rf"Rocky-{re.escape(release)}-{re.escape(name_part)}"
@@ -46,15 +53,21 @@ class RockyLinux(Distro):
 class AlmaLinux(Distro):
     name = "almalinux"
     description = "AlmaLinux OS"
-    defaults = {"release": "10", "variant": "GenericCloud", "arch": "x86_64"}
-
-    base_url = "https://repo.almalinux.org/almalinux"
+    options = {
+        "release": Option("10", note="major version, e.g. 9, 10"),
+        "variant": Option("GenericCloud", ("GenericCloud", "GenericCloud-ext4")),
+        "arch": Option("x86_64", ("x86_64", "aarch64")),
+        "base_url": Option(
+            "https://repo.almalinux.org/almalinux",
+            note="upstream or mirror base URL",
+        ),
+    }
 
     def resolve(self, params: Mapping[str, str]) -> RemoteImage:
         release = params["release"]
         variant = params["variant"]
         arch = params["arch"]
-        base = f"{self.base_url}/{release}/cloud/{arch}/images/"
+        base = f"{params['base_url']}/{release}/cloud/{arch}/images/"
         filename = self.newest_in(
             base,
             rf"AlmaLinux-{re.escape(release)}-{re.escape(variant)}"
@@ -73,16 +86,24 @@ class AlmaLinux(Distro):
 class Fedora(Distro):
     name = "fedora"
     description = "Fedora Cloud"
-    defaults = {"release": "44", "variant": "Generic", "arch": "x86_64"}
-    supports_tag = True
-
-    base_url = "https://download.fedoraproject.org/pub/fedora/linux/releases"
+    options = {
+        "release": Option("44", note="release number, e.g. 43, 44"),
+        "variant": Option("Generic", ("Generic", "UEFI-UKI")),
+        "arch": Option("x86_64", ("x86_64", "aarch64")),
+        "tag": Option(
+            "", note="build number like 1.10; the newest is used when omitted"
+        ),
+        "base_url": Option(
+            "https://download.fedoraproject.org/pub/fedora/linux/releases",
+            note="upstream or mirror base URL",
+        ),
+    }
 
     def resolve(self, params: Mapping[str, str]) -> RemoteImage:
         release = params["release"]
         variant = params["variant"]
         arch = params["arch"]
-        base = f"{self.base_url}/{release}/Cloud/{arch}/images/"
+        base = f"{params['base_url']}/{release}/Cloud/{arch}/images/"
         pattern = (
             rf"Fedora-Cloud-Base-{re.escape(variant)}-{re.escape(release)}"
             rf"-(\d[\d.]*)\.{re.escape(arch)}\.qcow2"
@@ -108,15 +129,21 @@ class Fedora(Distro):
 class CentOSStream(Distro):
     name = "centos"
     description = "CentOS Stream"
-    defaults = {"release": "10", "variant": "GenericCloud", "arch": "x86_64"}
-
-    base_url = "https://cloud.centos.org/centos"
+    options = {
+        "release": Option("10", note="major version, e.g. 9, 10"),
+        "variant": Option("GenericCloud", ("GenericCloud",)),
+        "arch": Option("x86_64", ("x86_64", "aarch64")),
+        "base_url": Option(
+            "https://cloud.centos.org/centos",
+            note="upstream or mirror base URL",
+        ),
+    }
 
     def resolve(self, params: Mapping[str, str]) -> RemoteImage:
         release = params["release"]
         variant = params["variant"]
         arch = params["arch"]
-        base = f"{self.base_url}/{release}-stream/{arch}/images/"
+        base = f"{params['base_url']}/{release}-stream/{arch}/images/"
         filename = self.newest_in(
             base,
             rf"CentOS-Stream-{re.escape(variant)}-{re.escape(arch)}"

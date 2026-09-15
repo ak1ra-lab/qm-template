@@ -9,6 +9,46 @@ from qm_template.http import latest_name, list_directory
 
 
 @dataclass(frozen=True)
+class Option:
+    """A distro parameter with its default and the values it accepts."""
+
+    default: str
+    choices: tuple[str, ...] | None = None
+    suffix: tuple[str, ...] = ()
+    note: str = ""
+
+    def accepts(self, value: str) -> bool:
+        if self.choices is None:
+            return True
+        if value in self.choices:
+            return True
+        return any(
+            value.endswith(suffix) and value.removesuffix(suffix) in self.choices
+            for suffix in self.suffix
+        )
+
+    def completions(self, prefix: str) -> list[str]:
+        values = list(self.choices or ())
+        values.extend(
+            f"{choice}{suffix}"
+            for choice in self.choices or ()
+            for suffix in self.suffix
+        )
+        return [value for value in values if value.startswith(prefix)]
+
+    def describe(self) -> str:
+        parts: list[str] = []
+        if self.choices:
+            text = ", ".join(self.choices)
+            if self.suffix:
+                text += f" (optionally with {' or '.join(self.suffix)})"
+            parts.append(f"choices: {text}")
+        if self.note:
+            parts.append(self.note)
+        return "; ".join(parts)
+
+
+@dataclass(frozen=True)
 class RemoteImage:
     distro: str
     release: str
@@ -36,22 +76,42 @@ class Distro(ABC):
 
     name: ClassVar[str]
     description: ClassVar[str]
-    defaults: ClassVar[dict[str, str]] = {}
-    supports_tag: ClassVar[bool] = False
+    options: ClassVar[Mapping[str, Option]] = {}
+
+    @property
+    def defaults(self) -> dict[str, str]:
+        return {
+            key: option.default
+            for key, option in self.options.items()
+            if option.default
+        }
+
+    @property
+    def supports_tag(self) -> bool:
+        return "tag" in self.options
 
     def merge(
         self,
         config_defaults: Mapping[str, str],
         overrides: Mapping[str, str | None],
     ) -> dict[str, str]:
-        params = dict(self.defaults)
+        params = self.defaults
         for source in (config_defaults, overrides):
             for key, value in source.items():
                 if value is None:
                     continue
-                if key not in self.defaults and key != "tag":
+                option = self.options.get(key)
+                if option is None:
+                    supported = ", ".join(sorted(self.options)) or "none"
                     raise QmTemplateError(
-                        f"unknown parameter {key!r} for distro {self.name!r}"
+                        f"unknown parameter {key!r} for distro {self.name!r} "
+                        f"(supported: {supported})"
+                    )
+                if not option.accepts(str(value)):
+                    choices = ", ".join(option.choices or ())
+                    raise QmTemplateError(
+                        f"invalid {key} {value!r} for distro {self.name!r} "
+                        f"(choose from: {choices})"
                     )
                 params[key] = str(value)
         return params
