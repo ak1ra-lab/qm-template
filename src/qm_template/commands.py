@@ -1,4 +1,5 @@
 import argparse
+import json
 import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -13,7 +14,7 @@ from qm_template.cloudinit import (
     sshkeys_file,
     user_data,
 )
-from qm_template.config import CreateSettings, Settings
+from qm_template.config import CreateSettings, Settings, packaged_config_text
 from qm_template.distros import DISTROS, RemoteImage
 from qm_template.download import (
     Downloader,
@@ -324,6 +325,34 @@ def add_distros_arguments(parser: argparse.ArgumentParser) -> None:
     _set_completer(action, _complete_distro_names)
 
 
+def add_config_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="also print the per-distro default tables",
+    )
+
+
+def _distro_tables() -> str:
+    lines = [
+        "# Generated per-distro defaults. Every value below is the built-in",
+        "# default; remove a table to fall back to it, or edit the values.",
+    ]
+    for name, distro in DISTROS.items():
+        lines.extend(["", f"[distro.{name}]"])
+        for key, option in distro.options.items():
+            if option.default:
+                lines.append(f"{key} = {json.dumps(option.default)}")
+    return "\n".join(lines) + "\n"
+
+
+def run_config(args: argparse.Namespace, settings: Settings) -> None:
+    print(packaged_config_text(), end="")
+    if args.full:
+        print()
+        print(_distro_tables(), end="")
+
+
 def _describe_option(value: str, detail: str) -> str:
     rendered = f"  {value:<24} {detail}".rstrip()
     return rendered
@@ -354,6 +383,7 @@ class Command:
     run: Callable[[argparse.Namespace, Settings], None]
     description: str = ""
     aliases: tuple[str, ...] = ()
+    load_settings: bool = True
 
 
 COMMANDS: tuple[Command, ...] = (
@@ -389,5 +419,16 @@ COMMANDS: tuple[Command, ...] = (
         add_arguments=add_distros_arguments,
         run=run_distros,
         description="List supported distros with the values each option accepts.",
+    ),
+    Command(
+        name="config",
+        help="print the default configuration",
+        add_arguments=add_config_arguments,
+        run=run_config,
+        description=(
+            "Print the default configuration to stdout; redirect it to "
+            "/etc/qm-template/config.toml to use it as a starting point."
+        ),
+        load_settings=False,
     ),
 )

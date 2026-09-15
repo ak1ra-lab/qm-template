@@ -92,7 +92,7 @@ def test_short_version_flag(capsys: pytest.CaptureFixture[str]) -> None:
     assert capsys.readouterr().out.startswith("qm-template ")
 
 
-def test_first_run_writes_default_config(
+def test_missing_config_file_uses_builtin_defaults(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
@@ -101,8 +101,34 @@ def test_first_run_writes_default_config(
     monkeypatch.setattr("qm_template.config.default_config_path", lambda: target)
     monkeypatch.delenv("QM_TEMPLATE_CONFIG", raising=False)
     assert main(["distros"]) == 0
-    assert target.is_file()
+    assert not target.exists()
     assert "debian" in capsys.readouterr().out
+
+
+def test_config_command_prints_defaults(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    broken = tmp_path / "config.toml"
+    broken.write_text("[paths\n")
+    assert main(["config", "-c", str(broken)]) == 0
+    output = capsys.readouterr().out
+    assert "[paths]" in output
+    assert "images_dir" in output
+    assert "[vmid]" in output
+    assert "\n[distro.debian]" not in output
+
+
+def test_config_command_full_prints_distro_tables(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = tmp_path / "config.toml"
+    config.write_text("")
+    assert main(["config", "--full", "-c", str(config)]) == 0
+    output = capsys.readouterr().out
+    assert "[distro.debian]" in output
+    assert 'release = "trixie"' in output
+    assert 'base_url = "https://cdimage.debian.org/images/cloud"' in output
+    assert "[distro.rocky]" in output
 
 
 def test_unknown_distro_returns_error(tmp_path: Path) -> None:

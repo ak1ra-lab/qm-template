@@ -8,6 +8,7 @@ from qm_template.config import (
     default_config_path,
     default_images_dir,
     load_settings,
+    packaged_config_text,
     parse_settings,
     resolve_config_path,
     ssh_key_fingerprint,
@@ -90,6 +91,18 @@ def test_parse_overrides():
         "~/.ssh/id_ed25519.pub",
         "/etc/keys.pub",
     )
+
+
+def test_packaged_config_text_loads_with_builtin_values(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text(packaged_config_text())
+    settings = load_settings(path, explicit=True)
+    assert settings.download.default_distro == "debian"
+    assert settings.download.quiet is False
+    assert settings.create.cpu == "host"
+    assert settings.vmid.start == 9000
+    assert settings.vmid.step == 1
+    assert settings.cloudinit.sshkeys_files == ()
 
 
 def test_unknown_distro_section_raises():

@@ -9,10 +9,10 @@ from pydantic import ValidationError
 from qm_template import PROGRAM, __version__
 from qm_template.commands import COMMANDS
 from qm_template.config import (
+    Settings,
     format_settings_error,
     load_settings,
     resolve_config_path,
-    write_default_config,
 )
 from qm_template.errors import QmTemplateError, UserCancelled
 from qm_template.log import log, setup_logging
@@ -48,7 +48,7 @@ def build_parser() -> argparse.ArgumentParser:
             description=command.description,
         )
         command.add_arguments(subparser)
-        subparser.set_defaults(handler=command.run)
+        subparser.set_defaults(handler=command.run, load_settings=command.load_settings)
     return parser
 
 
@@ -59,9 +59,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     setup_logging()
     try:
         config_path, explicit = resolve_config_path(getattr(args, "config", None))
-        if not explicit:
-            write_default_config(config_path)
-        settings = load_settings(config_path, explicit=explicit)
+        settings = (
+            load_settings(config_path, explicit=explicit)
+            if args.load_settings
+            else Settings()
+        )
         args.handler(args, settings)
     except ValidationError as exc:
         log.error("%s", format_settings_error(exc, source=None))

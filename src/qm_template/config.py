@@ -47,23 +47,9 @@ def resolve_config_path(cli_value: str | None) -> tuple[Path, bool]:
     return default_config_path(), False
 
 
-def _packaged_config_text() -> str:
+def packaged_config_text() -> str:
     config = resources.files("qm_template") / "config.default.toml"
     return config.read_text(encoding="utf-8")
-
-
-def write_default_config(path: Path) -> bool:
-    """Write the packaged default configuration unless a file already exists."""
-    if path.exists():
-        return False
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(_packaged_config_text(), encoding="utf-8")
-    except OSError as exc:
-        log.debug("Could not write default configuration to %s: %s", path, exc)
-        return False
-    log.info("Wrote default configuration to %s", path)
-    return True
 
 
 SSH_KEY_TYPE_PREFIXES = ("ssh-", "ecdsa-sha2-", "sk-")
