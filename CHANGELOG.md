@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0] - 2026-09-15
 
 ### Added
 
@@ -18,41 +18,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `<image>.iso`); an existing guest disk is kept unless `--force` is passed,
   while the seed ISO is rebuilt on every run. `--vm-name` and `--dry-run` are
   also supported.
-- Show every distro parameter with its default and accepted values in
+- Add `qm-template config` to print a commented starting-point configuration
+  to stdout; `--full` appends the per-distro default tables. The configuration
+  file is optional and never written automatically.
+- Validate settings with `pydantic-settings`: unknown keys and invalid values
+  are reported with the file and key path, moved keys get a migration hint,
+  and `QM_TEMPLATE_*` environment variables (nested with `__`) override the
+  file.
+- List every distro parameter with its default and accepted values in
   `qm-template distros`, and describe a single distro with
   `qm-template distros <name>`.
-- Validate configuration with `pydantic-settings` and support `QM_TEMPLATE_*`
-  environment variables (nested with `__`) that override the file.
-- Complete commands, options and per-distro parameter values with
-  `argcomplete`.
-- Add the short options `-c/--config`, `-V/--version`, `-n/--dry-run`,
-  `-q/--quiet` and `-f/--force`.
-- Add `qm-template config` to print a commented starting-point configuration
-  to stdout; `--full` appends the per-distro default tables.
 - Allow pointing a distro at an upstream or mirror with the `base_url`
   parameter in `[distro.<name>]`; the checksum file is fetched from the same
   base.
+- Complete commands, options and per-distro parameter values with
+  `argcomplete`, and add the short options `-c/--config`, `-V/--version`,
+  `-n/--dry-run`, `-q/--quiet` and `-f/--force`.
 
 ### Changed
 
-- Move the Cloud-Init settings out of `[create]` into a new top-level
-  `[cloudinit]` section and drop the redundant `ci` prefix (`user`,
-  `password`, `sshkeys`, `sshkeys_files`), since they are shared by `create`
-  and `prepare`; `[create]` keeps the Proxmox-specific keys.
-- Replace the `[download.<distro>]` overrides with `[distro.<distro>]`; they
-  are no longer written into the generated default configuration and only need
-  to be added when a distro should deviate from its built-in defaults.
-- Move the automatic VM ID selection from `create.start_id`/`create.step` to
+- Change the configuration layout (breaking): move the Cloud-Init settings out
+  of `[create]` into a top-level `[cloudinit]` section and drop the redundant
+  `ci` prefix (`user`, `password`, `sshkeys`, `sshkeys_files`); move the
+  per-distro overrides from `[download.<distro>]` to `[distro.<distro>]` and
+  stop including them in the generated default configuration; move automatic
+  VM ID selection from `create.start_id`/`create.step` to
   `vmid.start`/`vmid.step`.
-- Report unknown configuration keys with the file path, the key path and a
-  migration hint for settings that moved.
-- Stop writing the default configuration to `/etc/qm-template/config.toml` on
-  first run; the configuration file is optional and `qm-template config`
-  prints a starting point instead.
 - Validate distro parameter values against the values each distro accepts
-  instead of failing later while resolving the image URL.
-- Reject `--tag` with an error for distros that do not support it instead of
-  warning and ignoring it.
+  instead of failing later while resolving the image URL, and reject `--tag`
+  with an error for distros that do not support it instead of warning and
+  ignoring it.
+- Stop writing `/etc/qm-template/config.toml` on the first run; every command
+  works without a configuration file.
+- Depend on `pydantic-settings` and `argcomplete`; the CLI is no longer
+  standard-library-only.
 
 ### Removed
 
