@@ -12,6 +12,7 @@ from qm_template.pve import (
     check_storage,
     choose_image,
     default_vm_name,
+    detect_firmware,
     next_vm_id,
     prompt,
     run_qm,
@@ -70,6 +71,38 @@ def test_build_qm_create_is_single_complete_command():
     assert "local-zfs:cloudinit" in argv
     assert "--ciuser" in argv
     assert "--sshkeys" in argv
+    assert "--bios" not in argv
+    assert "--efidisk0" not in argv
+
+
+def test_detect_firmware_reads_the_image_name():
+    assert detect_firmware(Path("debian-13-genericcloud-amd64.qcow2")) == "bios"
+    assert (
+        detect_firmware(Path("Fedora-Cloud-Base-UEFI-UKI-44-1.7.x86_64.qcow2"))
+        == "uefi"
+    )
+    assert (
+        detect_firmware(Path("generic_alpine-3.24.1-aarch64-uefi-cloudinit-r0.qcow2"))
+        == "uefi"
+    )
+
+
+def test_build_qm_create_uefi_adds_ovmf_and_efidisk():
+    settings = CreateSettings(storage="local-zfs")
+    command = build_qm_create(
+        9000,
+        "fedora-uki",
+        Path("/images/f.qcow2"),
+        Path("/keys.pub"),
+        settings,
+        CloudInitSettings(),
+        firmware="uefi",
+    )
+    argv = flatten(command)
+    assert ["--bios", "ovmf"] == argv[argv.index("--bios") :][:2]
+    assert ["--efidisk0", "local-zfs:1,pre-enrolled-keys=0"] == argv[
+        argv.index("--efidisk0") :
+    ][:2]
 
 
 def test_next_vm_id_skips_used_ids():

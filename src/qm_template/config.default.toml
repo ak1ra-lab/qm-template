@@ -39,6 +39,10 @@ memory = 1024
 # migration across CPU generations. Use e.g. "x86-64-v2-AES" for portability.
 cpu = "host"
 bridge = "vmbr0"
+# Firmware for created VMs: "auto" selects "uefi" for images whose filename
+# contains "uefi" (e.g. Fedora's UEFI-UKI variant) and "bios" otherwise. UEFI
+# VMs get an EFI disk (--bios ovmf, --efidisk0) with Secure Boot disabled.
+firmware = "auto"
 
 [vmid]
 # When --vm-id is omitted, the first free VM ID at or after start (scanning
@@ -53,6 +57,9 @@ user = "debian"
 # Kept as a fixed default so the console rescue password stays predictable;
 # change it here to use something else.
 password = "debian"
+# Login shell for the user created by the local seed ISO (`prepare`); set it to
+# "" to keep the image default, or e.g. "/bin/ash" on Alpine Linux.
+shell = "/bin/bash"
 
 # SSH public keys injected via Cloud-Init. Inline keys in sshkeys and the
 # contents of every sshkeys_files entry are merged and deduplicated by SSH key

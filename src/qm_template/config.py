@@ -6,7 +6,7 @@ import tomllib
 from collections.abc import Mapping
 from importlib import resources
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import (
     BaseModel,
@@ -136,6 +136,7 @@ class CreateSettings(BaseModel):
     memory: int = Field(1024, ge=1)
     cpu: str = "host"
     bridge: str = "vmbr0"
+    firmware: Literal["auto", "bios", "uefi"] = "auto"
 
 
 class VmidSettings(BaseModel):
@@ -150,6 +151,7 @@ class CloudInitSettings(BaseModel):
 
     user: str = "debian"
     password: str = "debian"
+    shell: str = "/bin/bash"
     sshkeys: tuple[str, ...] = ()
     sshkeys_files: tuple[str, ...] = ()
 

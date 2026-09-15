@@ -80,11 +80,16 @@ def user_data(settings: CloudInitSettings, vm_name: str) -> str:
         f"hostname: {_yaml_string(vm_name)}",
         "users:",
         f"  - name: {_yaml_string(settings.user)}",
-        "    shell: /bin/bash",
-        "    lock_passwd: false",
-        "    sudo: ALL=(ALL) NOPASSWD:ALL",
-        "    ssh_authorized_keys:",
     ]
+    if settings.shell:
+        lines.append(f"    shell: {_yaml_string(settings.shell)}")
+    lines.extend(
+        [
+            "    lock_passwd: false",
+            "    sudo: ALL=(ALL) NOPASSWD:ALL",
+            "    ssh_authorized_keys:",
+        ]
+    )
     lines.extend(f"      - {_yaml_string(key)}" for key in keys)
     lines.extend(
         [

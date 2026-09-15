@@ -182,7 +182,71 @@ def test_create_dry_run_prints_pretty_command(
     output = capsys.readouterr().out
     assert output.startswith("qm create 9000 \\\n")
     assert "    --name debian-13-genericcloud-amd64 \\\n" in output
+    assert "--bios" not in output
+    assert "--efidisk0" not in output
     assert output.rstrip().endswith("--template 1")
+
+
+def test_create_dry_run_auto_selects_uefi_from_image_name(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    images = tmp_path / "images"
+    images.mkdir()
+    (images / "Fedora-Cloud-Base-UEFI-UKI-44-1.7.x86_64.qcow2").write_bytes(b"")
+    config = write_config(
+        tmp_path,
+        images,
+        cloudinit='sshkeys = ["ssh-ed25519 AAAA"]\n',
+    )
+    monkeypatch.setattr(
+        "qm_template.commands.vm_config_path",
+        lambda vm_id: tmp_path / f"{vm_id}.conf",
+    )
+    monkeypatch.setattr("qm_template.commands.check_storage", lambda _storage: None)
+    assert (
+        main(["create", "--dry-run", "--vm-id", "9000", "--config", str(config)]) == 0
+    )
+    output = capsys.readouterr().out
+    assert "    --bios ovmf \\\n" in output
+    assert "    --efidisk0 local-lvm:1,pre-enrolled-keys=0 \\\n" in output
+
+
+def test_create_dry_run_firmware_override(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    images = tmp_path / "images"
+    images.mkdir()
+    (images / "debian-13-genericcloud-amd64.qcow2").write_bytes(b"")
+    config = write_config(
+        tmp_path,
+        images,
+        cloudinit='sshkeys = ["ssh-ed25519 AAAA"]\n',
+    )
+    monkeypatch.setattr(
+        "qm_template.commands.vm_config_path",
+        lambda vm_id: tmp_path / f"{vm_id}.conf",
+    )
+    monkeypatch.setattr("qm_template.commands.check_storage", lambda _storage: None)
+    assert (
+        main(
+            [
+                "create",
+                "--dry-run",
+                "--vm-id",
+                "9000",
+                "--firmware",
+                "uefi",
+                "--config",
+                str(config),
+            ]
+        )
+        == 0
+    )
+    assert "    --bios ovmf \\\n" in capsys.readouterr().out
 
 
 def test_create_picks_next_free_vm_id(

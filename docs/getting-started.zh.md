@@ -44,9 +44,14 @@ uv tool install .
 `-q`/`--quiet` 关闭。`cloudinit.user`/`password` 配置 Cloud-Init 用户，
 `cloudinit.sshkeys` 以内联列表提供注入的 SSH 公钥，`cloudinit.sshkeys_files`
 指向公钥文件列表，两者的内容会按 SSH 指纹合并去重，且至少需要配置一个公钥。
+`cloudinit.shell` 设置本地 seed ISO（`prepare`）创建用户的登录 shell；设为 `""`
+则保留镜像默认 shell，Alpine Linux 可设为 `/bin/ash`。
 `create.cpu` 设置传给 `qm` 的 CPU 类型（`cputype=...`，默认 `host`，性能最好但
-无法跨 CPU 代际迁移）。`vmid.start` 和 `vmid.step`（默认 `9000` 和 `1`）控制
-VM ID 的自动选择。
+无法跨 CPU 代际迁移）。`create.firmware`（`auto`、`bios` 或 `uefi`）选择固件；
+`auto` 会对文件名包含 `uefi` 的镜像（例如 Fedora 的 `UEFI-UKI` 变体）使用
+UEFI，其余使用 BIOS。UEFI 模板通过 `--bios ovmf` 和一块 EFI 磁盘创建
+（`--efidisk0 <storage>:1,pre-enrolled-keys=0`，即不启用 Secure Boot）。
+`vmid.start` 和 `vmid.step`（默认 `9000` 和 `1`）控制 VM ID 的自动选择。
 
 按发行版覆盖参数是可选的，位于 `[distro.<name>]` 下；这些覆盖不会出现在
 `qm-template config` 打印的默认配置中，只在某个发行版需要偏离内置默认值时才添加：
@@ -137,6 +142,9 @@ qm-template create --vm-id 9000 --vm-name debian-13-template
 
 # 使用便于迁移的 CPU 类型
 qm-template create --cpu x86-64-v2-AES
+
+# 覆盖根据镜像名自动判定的固件
+qm-template create --firmware uefi
 
 # 仅查看组装好的命令，不执行
 qm-template create --dry-run --vm-id 9000

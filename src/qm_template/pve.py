@@ -99,6 +99,11 @@ def check_storage(storage: str) -> None:
         )
 
 
+def detect_firmware(image: Path) -> str:
+    """Guess the firmware an image needs from its filename."""
+    return "uefi" if "uefi" in image.name.lower() else "bios"
+
+
 def build_qm_create(
     vm_id: int,
     vm_name: str,
@@ -106,8 +111,16 @@ def build_qm_create(
     sshkeys: Path,
     settings: CreateSettings,
     cloudinit: CloudInitSettings,
+    *,
+    firmware: str = "bios",
 ) -> CommandGroups:
     storage = settings.storage
+    firmware_args: CommandGroups = []
+    if firmware == "uefi":
+        firmware_args = [
+            ["--bios", "ovmf"],
+            ["--efidisk0", f"{storage}:1,pre-enrolled-keys=0"],
+        ]
     return [
         ["qm", "create", str(vm_id)],
         ["--name", vm_name],
@@ -119,6 +132,7 @@ def build_qm_create(
         ["--scsihw", "virtio-scsi-single"],
         ["--agent", "type=virtio,enabled=1"],
         ["--machine", "q35"],
+        *firmware_args,
         ["--ostype", "l26"],
         ["--serial0", "socket"],
         ["--vga", "serial0"],

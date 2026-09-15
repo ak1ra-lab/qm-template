@@ -41,6 +41,7 @@ from qm_template.pve import (
     check_storage,
     choose_image,
     default_vm_name,
+    detect_firmware,
     next_vm_id,
     run_qm,
     used_vm_ids,
@@ -180,6 +181,11 @@ def add_create_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--cpu", help="CPU type passed as cputype (default: host)")
     parser.add_argument("--bridge", help="network bridge")
     parser.add_argument(
+        "--firmware",
+        choices=("auto", "bios", "uefi"),
+        help="VM firmware; auto uses uefi when the image name says UEFI",
+    )
+    parser.add_argument(
         "-n",
         "--dry-run",
         action="store_true",
@@ -194,6 +200,9 @@ def run_create(args: argparse.Namespace, settings: Settings) -> None:
         memory=args.memory if args.memory is not None else settings.create.memory,
         cpu=args.cpu if args.cpu is not None else settings.create.cpu,
         bridge=args.bridge if args.bridge is not None else settings.create.bridge,
+        firmware=(
+            args.firmware if args.firmware is not None else settings.create.firmware
+        ),
     )
 
     images = find_images(settings.images_dir, args.pattern)
@@ -202,6 +211,8 @@ def run_create(args: argparse.Namespace, settings: Settings) -> None:
         log.info("Selected image: %s", image.name)
     else:
         image = choose_image(images, settings.images_dir)
+
+    firmware = create.firmware if create.firmware != "auto" else detect_firmware(image)
 
     vm_name = args.vm_name or default_vm_name(image)
     if args.vm_id is not None:
@@ -215,18 +226,25 @@ def run_create(args: argparse.Namespace, settings: Settings) -> None:
         log.info("Selected free VM ID: %d", vm_id)
     log.info("Creating VM %d (%s)", vm_id, vm_name)
     log.debug(
-        "storage=%s cores=%d memory=%d cpu=%s bridge=%s",
+        "storage=%s cores=%d memory=%d cpu=%s bridge=%s firmware=%s",
         create.storage,
         create.cores,
         create.memory,
         create.cpu,
         create.bridge,
+        firmware,
     )
 
     check_storage(create.storage)
     with sshkeys_file(settings.cloudinit) as sshkeys:
         command = build_qm_create(
-            vm_id, vm_name, image, sshkeys, create, settings.cloudinit
+            vm_id,
+            vm_name,
+            image,
+            sshkeys,
+            create,
+            settings.cloudinit,
+            firmware=firmware,
         )
         if args.dry_run:
             print(pretty(command))

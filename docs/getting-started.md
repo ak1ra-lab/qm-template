@@ -48,10 +48,16 @@ by default; `download.quiet = true` or `-q`/`--quiet` hides it.
 `cloudinit.user`/`password` configure the Cloud-Init user, and
 `cloudinit.sshkeys`/`sshkeys_files` list inline SSH public keys and key files
 whose contents are merged and deduplicated by key fingerprint; at least one key
-is required. `create.cpu` sets the CPU type passed to `qm` as `cputype=...`
+is required. `cloudinit.shell` sets the login shell of the user created by the
+local seed ISO (`prepare`); set it to `""` to keep the image's default shell,
+or to `/bin/ash` on Alpine Linux. `create.cpu` sets the CPU type passed to `qm` as `cputype=...`
 (default `host`, which is fast but prevents migration across CPU generations).
-`vmid.start` and `vmid.step` (defaults `9000` and `1`) drive automatic VM ID
-selection.
+`create.firmware` (`auto`, `bios` or `uefi`) selects the firmware; `auto` uses
+UEFI for images whose filename contains `uefi` (for example Fedora's `UEFI-UKI`
+variant) and BIOS for everything else. UEFI templates are created with
+`--bios ovmf` and an EFI disk (`--efidisk0 <storage>:1,pre-enrolled-keys=0`, so
+Secure Boot stays disabled). `vmid.start` and `vmid.step` (defaults `9000` and
+`1`) drive automatic VM ID selection.
 
 Per-distro overrides are optional and live under `[distro.<name>]`. They are
 not included in the default configuration printed by `qm-template config`; add
@@ -154,6 +160,9 @@ qm-template create --vm-id 9000 --vm-name debian-13-template
 
 # use a migration-friendly CPU type
 qm-template create --cpu x86-64-v2-AES
+
+# override the firmware auto-detected from the image name
+qm-template create --firmware uefi
 
 # inspect the assembled command without running it
 qm-template create --dry-run --vm-id 9000

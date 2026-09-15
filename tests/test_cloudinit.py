@@ -69,6 +69,13 @@ def test_user_data_configures_the_cloud_user():
     assert '      - "ssh-ed25519 AAAA"' in document
     assert 'password: "pa:ss"' in document
     assert "ssh_pwauth: true" in document
+    assert 'shell: "/bin/bash"' in document
+
+
+def test_user_data_can_omit_the_shell():
+    settings = CloudInitSettings(shell="", sshkeys=("ssh-ed25519 AAAA",))
+    document = user_data(settings, "vm")
+    assert "shell:" not in document
 
 
 def test_user_data_escapes_special_characters():
