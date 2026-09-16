@@ -20,6 +20,7 @@ class ArchLinux(Distro):
         "base_url": Option(
             "https://geo.mirror.pkgbuild.com/images",
             note="upstream or mirror base URL",
+            cli=False,
         ),
     }
 

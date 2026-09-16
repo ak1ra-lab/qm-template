@@ -19,6 +19,7 @@ class Debian(Distro):
         "base_url": Option(
             "https://cdimage.debian.org/images/cloud",
             note="upstream or mirror base URL",
+            cli=False,
         ),
     }
 

@@ -16,12 +16,17 @@ class Ubuntu(Distro):
     name = "ubuntu"
     description = "Ubuntu cloud images"
     options = {
-        "release": Option("resolute", note="codename, e.g. resolute, noble, jammy"),
+        "release": Option(
+            "resolute",
+            pattern=r"[a-z]+",
+            note="codename, e.g. resolute, noble, jammy",
+        ),
         "variant": Option("server", ("server", "minimal")),
         "arch": Option("amd64", ("amd64", "arm64")),
         "base_url": Option(
             "https://cloud-images.ubuntu.com",
             note="upstream or mirror base URL",
+            cli=False,
         ),
     }
 

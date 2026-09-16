@@ -136,6 +136,43 @@ def test_distro_base_url_override():
     )
 
 
+def test_distro_specific_option_is_accepted():
+    settings = parse_settings(
+        {"distro": {"freebsd": {"fs": "zfs"}}},
+        source=Path("config.toml"),
+    )
+    assert settings.distro_overrides("freebsd") == {"fs": "zfs"}
+
+
+def test_distro_specific_option_is_rejected_for_other_distros():
+    with pytest.raises(QmTemplateError, match="unknown parameter 'fs'"):
+        parse_settings(
+            {"distro": {"debian": {"fs": "zfs"}}}, source=Path("config.toml")
+        )
+
+
+def test_distro_option_values_are_coerced_to_strings():
+    settings = parse_settings(
+        {"distro": {"rocky": {"release": 10}}}, source=Path("config.toml")
+    )
+    assert settings.distro["rocky"].release == "10"
+    assert settings.distro_overrides("rocky") == {"release": "10"}
+
+
+def test_distro_pattern_is_validated():
+    with pytest.raises(QmTemplateError, match="must match"):
+        parse_settings(
+            {"distro": {"alpine": {"release": "3.24.1"}}},
+            source=Path("config.toml"),
+        )
+
+
+def test_environment_can_override_a_distro_option(monkeypatch, tmp_path):
+    monkeypatch.setenv("QM_TEMPLATE_DISTRO__FREEBSD__FS", "zfs")
+    settings = load_settings(tmp_path / "missing.toml", explicit=False)
+    assert settings.distro_overrides("freebsd") == {"fs": "zfs"}
+
+
 def test_unknown_distro_parameter_raises():
     with pytest.raises(QmTemplateError):
         parse_settings(

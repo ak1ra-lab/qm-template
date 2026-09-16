@@ -156,6 +156,24 @@ def test_option_accepts_suffix_and_free_form_values():
     assert "bookworm-backports" in release.completions("bookworm")
 
 
+def test_option_pattern_is_validated_and_described():
+    release = DISTROS["alpine"].options["release"]
+    assert release.accepts("3.24")
+    assert not release.accepts("3")
+    assert "pattern: \\d+\\.\\d+" in release.describe()
+    assert "must match" in release.expectation()
+    with pytest.raises(QmTemplateError, match="must match"):
+        DISTROS["alpine"].merge({}, {"release": "3"})
+    with pytest.raises(QmTemplateError, match="must match"):
+        DISTROS["freebsd"].merge({}, {"release": "15"})
+
+
+def test_option_cli_defaults_to_true_and_base_url_is_config_only():
+    assert DISTROS["alpine"].options["base_url"].cli is False
+    assert "config file only" in DISTROS["alpine"].options["base_url"].describe()
+    assert DISTROS["alpine"].options["arch"].cli is True
+
+
 def test_declared_options_cover_defaults():
     for distro in DISTROS.values():
         assert set(distro.defaults) <= set(distro.options)

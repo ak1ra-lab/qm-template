@@ -52,10 +52,17 @@ PyPI.
   use `QM_TEMPLATE_*` with `__` for nesting and beat the file; CLI options beat
   both.
 - Distro parameters are declared as `Option` schemas on each `Distro` subclass
-  (`release`/`variant`/`arch`/`tag`/`base_url` defaults and accepted values).
-  The same schema drives `merge()` validation, `qm-template distros` and
-  completion; `defaults` and `supports_tag` are derived from it. Never
-  duplicate parameter data elsewhere.
+  (per-distro defaults, accepted values and help). The same schema drives
+  `merge()` validation, `[distro.<name>]` config validation, the generated
+  `download` flags, `qm-template distros` and completion; `defaults` are derived
+  from it. Never duplicate parameter data elsewhere. `Option(cli=False)` keeps a
+  parameter out of the CLI (used by `base_url`).
+- When adding a distro behavior, prefer a declared `Option` over a hardcoded
+  token, mapping or regex branch: hidden axes that change the artifact (for
+  example FreeBSD's `fs` or Alpine's `firmware`) must be options, while fixed
+  prerequisites of this tool (Cloud-Init, qcow2, upstream revisions) stay
+  hardcoded and are not presented as knobs. `Option.pattern` validates
+  free-form values early.
 - Defaults: config `/etc/qm-template/config.toml` (optional and never written
   automatically; `qm-template config` prints a starting point), images
   `/var/lib/qm-template`, mirroring the upstream layout

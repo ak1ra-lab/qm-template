@@ -86,6 +86,38 @@ def _complete_distro_option(param: str) -> Callable[..., list[str]]:
     return complete
 
 
+CLI_OPTION_NAMES = tuple(
+    sorted(
+        {
+            name
+            for distro in DISTROS.values()
+            for name, option in distro.options.items()
+            if option.cli
+        }
+    )
+)
+
+DOWNLOAD_OPTION_HELP = {
+    "release": "distro release or codename",
+    "variant": "image variant",
+    "arch": "image architecture",
+    "tag": "specific image tag/version",
+}
+
+
+def _download_option_help(name: str) -> str:
+    if name in DOWNLOAD_OPTION_HELP:
+        return DOWNLOAD_OPTION_HELP[name]
+    notes = {
+        option.note
+        for distro in DISTROS.values()
+        if (option := distro.options.get(name)) and option.note
+    }
+    if len(notes) == 1:
+        return notes.pop()
+    return f"distro-specific parameter (see `{PROGRAM} distros <distro>`)"
+
+
 def add_download_arguments(parser: argparse.ArgumentParser) -> None:
     distro_argument = parser.add_argument(
         "distro",
@@ -93,13 +125,11 @@ def add_download_arguments(parser: argparse.ArgumentParser) -> None:
         help="distro name (default from configuration)",
     )
     _set_completer(distro_argument, _complete_distro_names)
-    for name, help_text in (
-        ("release", "distro release or codename"),
-        ("variant", "image variant"),
-        ("arch", "image architecture"),
-        ("tag", "specific image tag/version"),
-    ):
-        action = parser.add_argument(f"--{name}", help=help_text)
+    for name in CLI_OPTION_NAMES:
+        action = parser.add_argument(
+            f"--{name.replace('_', '-')}",
+            help=_download_option_help(name),
+        )
         _set_completer(action, _complete_distro_option(name))
     parser.add_argument(
         "-q",
@@ -147,16 +177,15 @@ def run_download(args: argparse.Namespace, settings: Settings) -> None:
         raise QmTemplateError(
             f"unknown distro {name!r} (run `{PROGRAM} distros` for a list)"
         )
-    if args.tag and not distro.supports_tag:
+    if args.tag and not distro.options.get("tag"):
         raise QmTemplateError(
             f"{distro.name} does not support --tag "
             f"(run `{PROGRAM} distros {distro.name}` for the supported options)"
         )
     overrides = {
-        "release": args.release,
-        "variant": args.variant,
-        "arch": args.arch,
-        "tag": args.tag,
+        name: value
+        for name in CLI_OPTION_NAMES
+        if (value := getattr(args, name, None)) is not None
     }
     params = distro.merge(settings.distro_overrides(distro.name), overrides)
     image = distro.resolve(params)

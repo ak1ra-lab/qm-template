@@ -17,6 +17,7 @@ class AmazonLinux(Distro):
         "base_url": Option(
             "https://cdn.amazonlinux.com/al2023/os-images",
             note="upstream or mirror base URL",
+            cli=False,
         ),
     }
 

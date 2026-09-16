@@ -9,13 +9,18 @@ class FreeBSD(Distro):
     name = "freebsd"
     description = "FreeBSD"
     options = {
-        "release": Option("15.1", note="release like 14.5 or 15.1"),
+        "release": Option(
+            "15.1",
+            pattern=r"\d+\.\d+",
+            note="release like 14.5 or 15.1",
+        ),
         "variant": Option("cloudinit", ("cloudinit", "base")),
         "fs": Option("ufs", ("ufs", "zfs")),
         "arch": Option("amd64", ("amd64", "aarch64")),
         "base_url": Option(
             "https://download.freebsd.org/ftp/releases/VM-IMAGES",
             note="upstream or mirror base URL",
+            cli=False,
         ),
     }
 

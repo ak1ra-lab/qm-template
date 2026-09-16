@@ -1,3 +1,4 @@
+import re
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -13,27 +14,42 @@ from qm_template.signature import Signature
 class Option:
     """A distro parameter with its default and the values it accepts."""
 
-    default: str
-    choices: tuple[str, ...] | None = None
+    default: str = ""
+    choices: tuple[str, ...] = ()
     suffix: tuple[str, ...] = ()
+    pattern: str = ""
     note: str = ""
+    cli: bool = True
 
     def accepts(self, value: str) -> bool:
-        if self.choices is None:
-            return True
-        if value in self.choices:
-            return True
-        return any(
-            value.endswith(suffix) and value.removesuffix(suffix) in self.choices
-            for suffix in self.suffix
-        )
+        if self.choices:
+            if value in self.choices:
+                return True
+            if any(
+                value.endswith(suffix) and value.removesuffix(suffix) in self.choices
+                for suffix in self.suffix
+            ):
+                return True
+            if not self.pattern:
+                return False
+        if self.pattern:
+            return re.fullmatch(self.pattern, value) is not None
+        return True
+
+    def expectation(self) -> str:
+        if self.choices:
+            text = f"choose from: {', '.join(self.choices)}"
+            if self.pattern:
+                text += f" or match {self.pattern!r}"
+            return text
+        if self.pattern:
+            return f"must match {self.pattern!r}"
+        return "any value is accepted"
 
     def completions(self, prefix: str) -> list[str]:
-        values = list(self.choices or ())
+        values = list(self.choices)
         values.extend(
-            f"{choice}{suffix}"
-            for choice in self.choices or ()
-            for suffix in self.suffix
+            f"{choice}{suffix}" for choice in self.choices for suffix in self.suffix
         )
         return [value for value in values if value.startswith(prefix)]
 
@@ -44,8 +60,12 @@ class Option:
             if self.suffix:
                 text += f" (optionally with {' or '.join(self.suffix)})"
             parts.append(f"choices: {text}")
+        if self.pattern:
+            parts.append(f"pattern: {self.pattern}")
         if self.note:
             parts.append(self.note)
+        if not self.cli:
+            parts.append("config file only")
         return "; ".join(parts)
 
 
@@ -100,10 +120,6 @@ class Distro(ABC):
             if option.default
         }
 
-    @property
-    def supports_tag(self) -> bool:
-        return "tag" in self.options
-
     def merge(
         self,
         config_defaults: Mapping[str, str],
@@ -122,10 +138,9 @@ class Distro(ABC):
                         f"(supported: {supported})"
                     )
                 if not option.accepts(str(value)):
-                    choices = ", ".join(option.choices or ())
                     raise QmTemplateError(
                         f"invalid {key} {value!r} for distro {self.name!r} "
-                        f"(choose from: {choices})"
+                        f"({option.expectation()})"
                     )
                 params[key] = str(value)
         return params

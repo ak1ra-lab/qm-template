@@ -29,8 +29,9 @@ default_distro = "debian"
 verify_signature = true
 
 # Optional per-distro overrides such as [distro.debian]. `qm-template distros`
-# lists every parameter with its default and accepted values; command-line
-# options override these settings. For example:
+# lists every parameter with its default and accepted values, and most of them
+# also have a command-line option (for example --release or --fs) that overrides
+# the configuration. base_url is configuration-only. For example:
 #
 # [distro.debian]
 # release = "bookworm-backports"

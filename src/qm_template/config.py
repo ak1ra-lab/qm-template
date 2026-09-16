@@ -118,22 +118,7 @@ class PrepareSettings(BaseModel):
 
 
 class DistroOverride(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    release: str | None = None
-    variant: str | None = None
-    arch: str | None = None
-    tag: str | None = None
-    base_url: str | None = None
-
-    @field_validator("release", "variant", "arch", "tag", mode="before")
-    @classmethod
-    def _coerce_int(cls, value: Any) -> Any:
-        if isinstance(value, bool):
-            return value
-        if isinstance(value, int):
-            return str(value)
-        return value
+    model_config = ConfigDict(extra="allow")
 
 
 Firmware = Literal["auto", "bios", "uefi"]
@@ -216,13 +201,14 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _check_distro_overrides(self) -> "Settings":
-        for name, override in self.distro.items():
+        for name in list(self.distro):
             distro = DISTROS.get(name)
             if distro is None:
                 raise ValueError(
                     f"unknown distro {name!r} (run `{PROGRAM} distros` for a list)"
                 )
-            for param, value in override.model_dump(exclude_none=True).items():
+            normalized: dict[str, str] = {}
+            for param, value in self.distro[name].model_dump(exclude_none=True).items():
                 option = distro.options.get(param)
                 if option is None:
                     supported = ", ".join(sorted(distro.options))
@@ -231,11 +217,12 @@ class Settings(BaseSettings):
                         f"(supported: {supported})"
                     )
                 if not option.accepts(str(value)):
-                    choices = ", ".join(option.choices or ())
                     raise ValueError(
                         f"invalid {param} {value!r} for distro {name!r} "
-                        f"(choose from: {choices})"
+                        f"({option.expectation()})"
                     )
+                normalized[param] = str(value)
+            self.distro[name] = DistroOverride.model_validate(normalized)
         return self
 
     @classmethod

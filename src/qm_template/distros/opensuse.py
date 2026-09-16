@@ -15,12 +15,17 @@ class OpenSUSE(Distro):
     name = "opensuse"
     description = "openSUSE Leap / Tumbleweed"
     options = {
-        "release": Option("tumbleweed", note="tumbleweed or a Leap version, e.g. 15.6"),
+        "release": Option(
+            "tumbleweed",
+            pattern=r"tumbleweed|\d+\.\d+",
+            note="tumbleweed or a Leap version, e.g. 15.6",
+        ),
         "variant": Option("Minimal", ("Minimal",)),
         "arch": Option("x86_64", ("x86_64", "aarch64")),
         "base_url": Option(
             "https://download.opensuse.org",
             note="upstream or mirror base URL",
+            cli=False,
         ),
     }
 

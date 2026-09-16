@@ -12,12 +12,17 @@ class Alpine(Distro):
     name = "alpine"
     description = "Alpine Linux"
     options = {
-        "release": Option("3.24", note="version series, e.g. 3.23, 3.24"),
+        "release": Option(
+            "3.24",
+            pattern=r"\d+\.\d+",
+            note="version series, e.g. 3.23, 3.24",
+        ),
         "variant": Option("generic", ("generic", "nocloud")),
         "arch": Option("x86_64", ("x86_64", "aarch64")),
         "base_url": Option(
             "https://dl-cdn.alpinelinux.org/alpine",
             note="upstream or mirror base URL",
+            cli=False,
         ),
     }
 

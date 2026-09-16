@@ -27,12 +27,17 @@ class RockyLinux(Distro):
     name = "rocky"
     description = "Rocky Linux"
     options = {
-        "release": Option("10", note="major version, e.g. 9, 10"),
+        "release": Option(
+            "10",
+            pattern=r"\d+(?:\.\d+)?",
+            note="major version, e.g. 9, 10",
+        ),
         "variant": Option("GenericCloud", ("GenericCloud", "GenericCloud-LVM")),
         "arch": Option("x86_64", ("x86_64", "aarch64")),
         "base_url": Option(
             "https://dl.rockylinux.org/pub/rocky",
             note="upstream or mirror base URL",
+            cli=False,
         ),
     }
 
@@ -79,12 +84,17 @@ class AlmaLinux(Distro):
     name = "almalinux"
     description = "AlmaLinux OS"
     options = {
-        "release": Option("10", note="major version, e.g. 9, 10"),
+        "release": Option(
+            "10",
+            pattern=r"\d+(?:\.\d+)?",
+            note="major version, e.g. 9, 10",
+        ),
         "variant": Option("GenericCloud", ("GenericCloud", "GenericCloud-ext4")),
         "arch": Option("x86_64", ("x86_64", "aarch64")),
         "base_url": Option(
             "https://repo.almalinux.org/almalinux",
             note="upstream or mirror base URL",
+            cli=False,
         ),
     }
 
@@ -119,7 +129,7 @@ class Fedora(Distro):
     name = "fedora"
     description = "Fedora Cloud"
     options = {
-        "release": Option("44", note="release number, e.g. 43, 44"),
+        "release": Option("44", pattern=r"\d+", note="release number, e.g. 43, 44"),
         "variant": Option("Generic", ("Generic", "UEFI-UKI")),
         "arch": Option("x86_64", ("x86_64", "aarch64")),
         "tag": Option(
@@ -128,6 +138,7 @@ class Fedora(Distro):
         "base_url": Option(
             "https://download.fedoraproject.org/pub/fedora/linux/releases",
             note="upstream or mirror base URL",
+            cli=False,
         ),
     }
 
@@ -169,12 +180,13 @@ class CentOSStream(Distro):
     name = "centos"
     description = "CentOS Stream"
     options = {
-        "release": Option("10", note="major version, e.g. 9, 10"),
+        "release": Option("10", pattern=r"\d+", note="major version, e.g. 9, 10"),
         "variant": Option("GenericCloud", ("GenericCloud",)),
         "arch": Option("x86_64", ("x86_64", "aarch64")),
         "base_url": Option(
             "https://cloud.centos.org/centos",
             note="upstream or mirror base URL",
+            cli=False,
         ),
     }
 

@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from qm_template.cli import build_parser, main
+from qm_template.commands import CLI_OPTION_NAMES
 from qm_template.download import part_path
 from qm_template.errors import QmTemplateError
 
@@ -477,6 +478,41 @@ def test_download_rejects_tag_for_unsupported_distro(
     config.write_text("")
     assert main(["download", "alpine", "--tag", "x", "-c", str(config)]) == 1
     assert "does not support --tag" in capsys.readouterr().err
+
+
+def test_download_option_flags_do_not_shadow_globals() -> None:
+    reserved = {"distro", "quiet", "dry_run", "config", "verbose"}
+    assert reserved.isdisjoint(CLI_OPTION_NAMES)
+
+
+def test_download_parser_registers_schema_options() -> None:
+    args = build_parser().parse_args(["download", "freebsd", "--fs", "zfs"])
+    assert args.fs == "zfs"
+    assert not hasattr(args, "base_url")
+
+
+def test_download_distro_specific_option_reaches_the_resolver(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("shutil.which", lambda _name: "/usr/bin/downloader")
+    config = tmp_path / "config.toml"
+    config.write_text("")
+    assert main(["download", "freebsd", "--fs", "zfs", "-n", "-c", str(config)]) == 0
+    assert "BASIC-CLOUDINIT-zfs.qcow2.xz" in capsys.readouterr().out
+
+
+def test_download_rejects_an_option_the_distro_does_not_declare(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("shutil.which", lambda _name: "/usr/bin/downloader")
+    config = tmp_path / "config.toml"
+    config.write_text("")
+    assert main(["download", "debian", "--fs", "zfs", "-c", str(config)]) == 1
+    assert "unknown parameter 'fs'" in capsys.readouterr().err
 
 
 def test_download_replaces_a_corrupt_existing_image(
