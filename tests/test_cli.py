@@ -92,6 +92,25 @@ def test_short_version_flag(capsys: pytest.CaptureFixture[str]) -> None:
     assert capsys.readouterr().out.startswith("qm-template ")
 
 
+def test_verbose_flag_counts_repetitions() -> None:
+    parser = build_parser()
+    assert getattr(parser.parse_args(["distros"]), "verbose", 0) == 0
+    assert parser.parse_args(["-v", "distros"]).verbose == 1
+    assert parser.parse_args(["-vv", "distros"]).verbose == 2
+    assert parser.parse_args(["distros", "-vv"]).verbose == 2
+
+
+def test_verbose_flag_enables_debug_logging(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = tmp_path / "config.toml"
+    config.write_text("")
+    assert main(["distros", "-v", "--config", str(config)]) == 0
+    assert "Loading configuration from" in capsys.readouterr().err
+    assert main(["distros", "--config", str(config)]) == 0
+    assert "Loading configuration from" not in capsys.readouterr().err
+
+
 def test_missing_config_file_uses_builtin_defaults(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],

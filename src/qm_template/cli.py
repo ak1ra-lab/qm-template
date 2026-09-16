@@ -27,6 +27,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=argparse.SUPPRESS,
         help="configuration file (default: /etc/qm-template/config.toml)",
     )
+    common.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=argparse.SUPPRESS,
+        help="increase log verbosity (-v: debug, -vv: with log levels and timestamps)",
+    )
     parser = argparse.ArgumentParser(
         prog=PROGRAM,
         description=(
@@ -56,7 +63,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     argcomplete.autocomplete(parser)
     args = parser.parse_args(argv)
-    setup_logging()
+    setup_logging(getattr(args, "verbose", 0))
     try:
         config_path, explicit = resolve_config_path(getattr(args, "config", None))
         settings = (
