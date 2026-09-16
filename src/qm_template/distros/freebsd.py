@@ -14,8 +14,7 @@ class FreeBSD(Distro):
             pattern=r"\d+\.\d+",
             note="release like 14.5 or 15.1",
         ),
-        "variant": Option("cloudinit", ("cloudinit", "base")),
-        "fs": Option("ufs", ("ufs", "zfs")),
+        "fs": Option("ufs", ("ufs", "zfs"), note="guest filesystem: ufs or zfs"),
         "arch": Option("amd64", ("amd64", "aarch64")),
         "base_url": Option(
             "https://download.freebsd.org/ftp/releases/VM-IMAGES",
@@ -27,11 +26,10 @@ class FreeBSD(Distro):
     def resolve(self, params: Mapping[str, str]) -> RemoteImage:
         release = params["release"]
         arch = params["arch"]
-        variant = "BASIC-CLOUDINIT-" if params["variant"] == "cloudinit" else ""
         base = f"{params['base_url']}/{release}-RELEASE/{arch}/Latest/"
         filename = (
             f"FreeBSD-{release}-RELEASE-{ARCH_TOKENS[arch]}"
-            f"-{variant}{params['fs']}.qcow2.xz"
+            f"-BASIC-CLOUDINIT-{params['fs']}.qcow2.xz"
         )
         return RemoteImage(
             distro=self.name,

@@ -463,10 +463,10 @@ def test_freebsd_resolves_the_cloudinit_image():
 
 def test_freebsd_aarch64_uses_the_arm64_aarch64_token():
     distro = FreeBSD()
-    image = distro.resolve(
-        distro.merge({}, {"arch": "aarch64", "variant": "base", "fs": "zfs"})
+    image = distro.resolve(distro.merge({}, {"arch": "aarch64", "fs": "zfs"}))
+    assert image.filename == (
+        "FreeBSD-15.1-RELEASE-arm64-aarch64-BASIC-CLOUDINIT-zfs.qcow2.xz"
     )
-    assert image.filename == "FreeBSD-15.1-RELEASE-arm64-aarch64-zfs.qcow2.xz"
 
 
 def test_amazonlinux_resolves_the_latest_version(monkeypatch):
@@ -539,3 +539,11 @@ def test_alpine_rejects_firmware_the_arch_does_not_have():
     distro = Alpine()
     with pytest.raises(QmTemplateError, match="only come with uefi firmware"):
         distro.resolve(distro.merge({}, {"arch": "aarch64", "firmware": "bios"}))
+
+
+def test_freebsd_fs_is_an_independent_axis():
+    distro = FreeBSD()
+    image = distro.resolve(distro.merge({}, {"fs": "zfs"}))
+    assert image.filename == "FreeBSD-15.1-RELEASE-amd64-BASIC-CLOUDINIT-zfs.qcow2.xz"
+    with pytest.raises(QmTemplateError, match="unknown parameter 'variant'"):
+        distro.merge({}, {"variant": "base"})
