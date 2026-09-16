@@ -4,9 +4,12 @@ import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
+
+from pydantic import BaseModel
 
 from qm_template import PROGRAM
+from qm_template.api import ApiPveTarget
 from qm_template.checksum import (
     fetch_checksum,
     read_checksum,
@@ -16,14 +19,18 @@ from qm_template.checksum import (
 from qm_template.cloudinit import (
     meta_data,
     network_config,
-    sshkeys_file,
+    require_ssh_keys,
     user_data,
 )
 from qm_template.config import (
     FIRMWARE_VALUES,
+    CloudInitSettings,
     CreateSettings,
     Settings,
+    VmidSettings,
+    load_settings,
     packaged_config_text,
+    resolve_config_path,
 )
 from qm_template.distros import DISTROS, RemoteImage
 from qm_template.download import (
@@ -47,19 +54,18 @@ from qm_template.prepare import (
 )
 from qm_template.pve import (
     MIN_VM_ID,
+    LocalPveTarget,
+    PveTarget,
     ResolvedFirmware,
-    build_qm_create,
-    check_storage,
+    VmSpec,
     choose_image,
     default_vm_name,
     detect_firmware,
-    next_vm_id,
-    run_qm,
-    used_vm_ids,
-    vm_config_path,
 )
 from qm_template.shell import pretty
 from qm_template.signature import verify_image
+
+Model = TypeVar("Model", bound=BaseModel)
 
 
 def _set_completer(
@@ -84,6 +90,17 @@ def _complete_distro_option(param: str) -> Callable[..., list[str]]:
         return [] if option is None else option.completions(prefix)
 
     return complete
+
+
+def _complete_pve_names(
+    prefix: str = "", parsed_args: argparse.Namespace | None = None, **_: Any
+) -> list[str]:
+    path, explicit = resolve_config_path(getattr(parsed_args, "config", None))
+    try:
+        settings = load_settings(path, explicit=explicit)
+    except QmTemplateError:
+        return []
+    return [name for name in settings.pve if name.startswith(prefix)]
 
 
 CLI_OPTION_NAMES = tuple(
@@ -267,21 +284,64 @@ def add_create_arguments(parser: argparse.ArgumentParser) -> None:
         choices=FIRMWARE_VALUES,
         help="VM firmware; auto uses uefi when the image name says UEFI",
     )
+    pve_argument = parser.add_argument(
+        "--pve",
+        metavar="NAME",
+        help=(
+            "create the template on the remote [pve.<name>] host through its API "
+            "(default: run qm on this machine)"
+        ),
+    )
+    _set_completer(pve_argument, _complete_pve_names)
     parser.add_argument(
         "-n",
         "--dry-run",
         action="store_true",
-        help="print the assembled qm command and exit",
+        help="print the assembled command or API requests and exit",
     )
 
 
+def _layered(model: type[Model], *sources: BaseModel | dict[str, Any] | None) -> Model:
+    """Merge configuration layers, honouring only explicitly set fields."""
+    values: dict[str, Any] = {}
+    for source in sources:
+        if source is None:
+            continue
+        if isinstance(source, dict):
+            values.update(source)
+        else:
+            values.update(source.model_dump(exclude_unset=True))
+    return model.model_validate(values)
+
+
 def run_create(args: argparse.Namespace, settings: Settings) -> None:
-    overrides = {
+    host = settings.pve_host(args.pve) if args.pve else None
+    target: PveTarget = (
+        LocalPveTarget()
+        if host is None
+        else ApiPveTarget(args.pve, host, settings.images_dir)
+    )
+    if host is not None:
+        log.info("Using PVE host %r (%s)", args.pve, host.host)
+
+    cli_overrides = {
         name: value
         for name in CreateSettings.model_fields
         if (value := getattr(args, name, None)) is not None
     }
-    create = CreateSettings.model_validate(settings.create.model_dump() | overrides)
+    create = _layered(
+        CreateSettings,
+        settings.create,
+        None if host is None else host.create,
+        cli_overrides,
+    )
+    vmid = _layered(VmidSettings, settings.vmid, None if host is None else host.vmid)
+    cloudinit = _layered(
+        CloudInitSettings,
+        settings.cloudinit,
+        None if host is None else host.cloudinit,
+    )
+    sshkeys = require_ssh_keys(cloudinit)
 
     images = find_images(settings.images_dir, args.pattern)
     if len(images) == 1:
@@ -293,16 +353,17 @@ def run_create(args: argparse.Namespace, settings: Settings) -> None:
     firmware: ResolvedFirmware = (
         create.firmware if create.firmware != "auto" else detect_firmware(image)
     )
-
     vm_name = args.vm_name or default_vm_name(image)
+
+    target.validate(create)
+
     if args.vm_id is not None:
         if args.vm_id < MIN_VM_ID:
             raise QmTemplateError(f"VM ID must be at least {MIN_VM_ID}")
-        if vm_config_path(args.vm_id).exists():
-            raise QmTemplateError(f"VM ID {args.vm_id} is already in use")
+        target.assert_vm_id_free(args.vm_id)
         vm_id = args.vm_id
     else:
-        vm_id = next_vm_id(used_vm_ids(), settings.vmid.start, settings.vmid.step)
+        vm_id = target.next_vm_id(vmid.start, vmid.step)
         log.info("Selected free VM ID: %d", vm_id)
     log.info("Creating VM %d (%s)", vm_id, vm_name)
     log.debug(
@@ -319,31 +380,25 @@ def run_create(args: argparse.Namespace, settings: Settings) -> None:
         ";".join(create.tags) or "-",
     )
 
-    check_storage(create.storage)
-    with sshkeys_file(settings.cloudinit) as sshkeys:
-        command = build_qm_create(
-            vm_id,
-            vm_name,
-            image,
-            sshkeys,
-            create,
-            settings.cloudinit,
-            firmware=firmware,
-        )
-        if args.dry_run:
-            print(pretty(command))
-            return
-        try:
-            run_qm(command)
-        except QmTemplateError:
-            if vm_config_path(vm_id).exists():
-                log.warning(
-                    "VM %d exists but may be incomplete; clean it up with: "
-                    "qm destroy %d",
-                    vm_id,
-                    vm_id,
-                )
-            raise
+    spec = VmSpec(
+        vm_id=vm_id,
+        name=vm_name,
+        image=image,
+        firmware=firmware,
+        create=create,
+        cloudinit=cloudinit,
+        sshkeys=sshkeys,
+    )
+    source = target.source_for(image)
+    if args.dry_run:
+        print(target.preview(spec, source))
+        return
+    target.ensure_source(source, image)
+    try:
+        target.create_template(spec, source)
+    except QmTemplateError:
+        target.abort(vm_id)
+        raise
     log.info("Template %s (ID %d) created", vm_name, vm_id)
 
 

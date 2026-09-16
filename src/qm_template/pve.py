@@ -3,13 +3,15 @@ import re
 import shutil
 import sys
 from collections.abc import Collection, Sequence
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Protocol
 
+from qm_template.cloudinit import sshkeys_file
 from qm_template.config import CloudInitSettings, CreateSettings
 from qm_template.errors import QmTemplateError, UserCancelled
 from qm_template.log import log
-from qm_template.shell import CommandGroups, flatten, run
+from qm_template.shell import CommandGroups, flatten, pretty, run
 
 PVE_VM_DIR = Path("/etc/pve/qemu-server")
 MIN_VM_ID = 100
@@ -114,19 +116,44 @@ def detect_firmware(image: Path) -> ResolvedFirmware:
     return "uefi" if "uefi" in image.name.lower() else "bios"
 
 
-def build_qm_create(
-    vm_id: int,
-    vm_name: str,
-    image: Path,
-    sshkeys: Path,
-    settings: CreateSettings,
-    cloudinit: CloudInitSettings,
-    *,
-    firmware: ResolvedFirmware = "bios",
-) -> CommandGroups:
+@dataclass(frozen=True)
+class VmSpec:
+    """A template to create, independent of where it is created."""
+
+    vm_id: int
+    name: str
+    image: Path
+    firmware: ResolvedFirmware
+    create: CreateSettings
+    cloudinit: CloudInitSettings
+    sshkeys: tuple[str, ...]
+
+
+class PveTarget(Protocol):
+    """Executes a template creation on a local or remote Proxmox VE node."""
+
+    def next_vm_id(self, start: int, step: int) -> int: ...
+
+    def assert_vm_id_free(self, vm_id: int) -> None: ...
+
+    def validate(self, create: CreateSettings) -> None: ...
+
+    def source_for(self, image: Path) -> str: ...
+
+    def ensure_source(self, source: str, image: Path) -> None: ...
+
+    def preview(self, spec: VmSpec, source: str) -> str: ...
+
+    def create_template(self, spec: VmSpec, source: str) -> None: ...
+
+    def abort(self, vm_id: int) -> None: ...
+
+
+def build_qm_create(spec: VmSpec, source: str, sshkeys: Path) -> CommandGroups:
+    settings = spec.create
     storage = settings.storage
     firmware_args: CommandGroups = []
-    if firmware == "uefi":
+    if spec.firmware == "uefi":
         firmware_args = [
             ["--bios", "ovmf"],
             ["--efidisk0", f"{storage}:1,pre-enrolled-keys=0"],
@@ -141,8 +168,8 @@ def build_qm_create(
     if settings.description:
         metadata_args.append(["--description", settings.description])
     return [
-        ["qm", "create", str(vm_id)],
-        ["--name", vm_name],
+        ["qm", "create", str(spec.vm_id)],
+        ["--name", spec.name],
         *metadata_args,
         ["--cpu", f"cputype={settings.cpu}"],
         ["--cores", str(settings.cores)],
@@ -156,13 +183,13 @@ def build_qm_create(
         ["--ostype", "l26"],
         ["--serial0", "socket"],
         ["--vga", "serial0"],
-        ["--scsi0", f"{storage}:0,import-from={image}"],
+        ["--scsi0", f"{storage}:0,import-from={source}"],
         ["--scsi1", f"{storage}:cloudinit"],
         ["--boot", "order=scsi0"],
         ["--ipconfig0", "ip=dhcp"],
         ["--ciupgrade", "0"],
-        ["--ciuser", cloudinit.user],
-        ["--cipassword", cloudinit.password],
+        ["--ciuser", spec.cloudinit.user],
+        ["--cipassword", spec.cloudinit.password],
         ["--sshkeys", str(sshkeys)],
         ["--template", "1"],
     ]
@@ -179,3 +206,39 @@ def run_qm(command: CommandGroups) -> None:
     result = run([qm, *argv[1:]])
     if result.returncode != 0:
         raise QmTemplateError(f"{label} failed with exit status {result.returncode}")
+
+
+class LocalPveTarget:
+    """Create templates with `qm` on the Proxmox VE node running the CLI."""
+
+    def next_vm_id(self, start: int, step: int) -> int:
+        return next_vm_id(used_vm_ids(), start, step)
+
+    def assert_vm_id_free(self, vm_id: int) -> None:
+        if vm_config_path(vm_id).exists():
+            raise QmTemplateError(f"VM ID {vm_id} is already in use")
+
+    def validate(self, create: CreateSettings) -> None:
+        check_storage(create.storage)
+
+    def source_for(self, image: Path) -> str:
+        return str(image)
+
+    def ensure_source(self, source: str, image: Path) -> None:
+        pass
+
+    def preview(self, spec: VmSpec, source: str) -> str:
+        with sshkeys_file(spec.sshkeys) as keys:
+            return pretty(build_qm_create(spec, source, keys))
+
+    def create_template(self, spec: VmSpec, source: str) -> None:
+        with sshkeys_file(spec.sshkeys) as keys:
+            run_qm(build_qm_create(spec, source, keys))
+
+    def abort(self, vm_id: int) -> None:
+        if vm_config_path(vm_id).exists():
+            log.warning(
+                "VM %d exists but may be incomplete; clean it up with: qm destroy %d",
+                vm_id,
+                vm_id,
+            )

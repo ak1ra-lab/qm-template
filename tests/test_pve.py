@@ -8,6 +8,7 @@ from qm_template.config import CloudInitSettings, CreateSettings
 from qm_template.errors import QmTemplateError, UserCancelled
 from qm_template.pve import (
     MIN_VM_ID,
+    VmSpec,
     build_qm_create,
     check_storage,
     choose_image,
@@ -20,6 +21,20 @@ from qm_template.pve import (
     vm_config_path,
 )
 from qm_template.shell import flatten
+
+
+def make_spec(**overrides) -> VmSpec:
+    values: dict = {
+        "vm_id": 9000,
+        "name": "debian-template",
+        "image": Path("/images/x.qcow2"),
+        "firmware": "bios",
+        "create": CreateSettings(),
+        "cloudinit": CloudInitSettings(),
+        "sshkeys": ("ssh-ed25519 AAAA",),
+    }
+    values.update(overrides)
+    return VmSpec(**values)
 
 
 def test_prompt_requires_stdin(monkeypatch, capsys):
@@ -46,22 +61,17 @@ def test_vm_config_path():
 
 
 def test_build_qm_create_is_single_complete_command():
-    settings = CreateSettings(
-        storage="local-zfs",
-        cores=4,
-        memory=4096,
-        cpu="x86-64-v2-AES",
-        bridge="vmbr1",
+    spec = make_spec(
+        create=CreateSettings(
+            storage="local-zfs",
+            cores=4,
+            memory=4096,
+            cpu="x86-64-v2-AES",
+            bridge="vmbr1",
+        ),
+        cloudinit=CloudInitSettings(user="admin", password="secret"),
     )
-    cloudinit = CloudInitSettings(user="admin", password="secret")
-    command = build_qm_create(
-        9000,
-        "debian-template",
-        Path("/images/x.qcow2"),
-        Path("/keys.pub"),
-        settings,
-        cloudinit,
-    )
+    command = build_qm_create(spec, "/images/x.qcow2", Path("/keys.pub"))
     assert ["qm", "create", "9000"] == command[0]
     assert flatten(command).count("qm") == 1
     assert ["--template", "1"] in command
@@ -88,34 +98,22 @@ def test_detect_firmware_reads_the_image_name():
 
 
 def test_build_qm_create_omits_metadata_by_default():
-    command = build_qm_create(
-        9000,
-        "debian-template",
-        Path("/images/x.qcow2"),
-        Path("/keys.pub"),
-        CreateSettings(),
-        CloudInitSettings(),
-    )
+    command = build_qm_create(make_spec(), "/images/x.qcow2", Path("/keys.pub"))
     argv = flatten(command)
     for flag in ("--tags", "--pool", "--onboot", "--description"):
         assert flag not in argv
 
 
 def test_build_qm_create_adds_metadata():
-    settings = CreateSettings(
-        tags=("template", "cloud"),
-        pool="templates",
-        onboot=True,
-        description="Debian 13 cloud template",
+    spec = make_spec(
+        create=CreateSettings(
+            tags=("template", "cloud"),
+            pool="templates",
+            onboot=True,
+            description="Debian 13 cloud template",
+        )
     )
-    command = build_qm_create(
-        9000,
-        "debian-template",
-        Path("/images/x.qcow2"),
-        Path("/keys.pub"),
-        settings,
-        CloudInitSettings(),
-    )
+    command = build_qm_create(spec, "/images/x.qcow2", Path("/keys.pub"))
     argv = flatten(command)
     assert ["--tags", "template;cloud"] == argv[argv.index("--tags") :][:2]
     assert ["--pool", "templates"] == argv[argv.index("--pool") :][:2]
@@ -126,16 +124,13 @@ def test_build_qm_create_adds_metadata():
 
 
 def test_build_qm_create_uefi_adds_ovmf_and_efidisk():
-    settings = CreateSettings(storage="local-zfs")
-    command = build_qm_create(
-        9000,
-        "fedora-uki",
-        Path("/images/f.qcow2"),
-        Path("/keys.pub"),
-        settings,
-        CloudInitSettings(),
+    spec = make_spec(
+        name="fedora-uki",
+        image=Path("/images/f.qcow2"),
         firmware="uefi",
+        create=CreateSettings(storage="local-zfs"),
     )
+    command = build_qm_create(spec, "/images/f.qcow2", Path("/keys.pub"))
     argv = flatten(command)
     assert ["--bios", "ovmf"] == argv[argv.index("--bios") :][:2]
     assert ["--efidisk0", "local-zfs:1,pre-enrolled-keys=0"] == argv[

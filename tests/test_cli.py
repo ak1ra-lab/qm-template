@@ -94,6 +94,12 @@ def test_short_version_flag(capsys: pytest.CaptureFixture[str]) -> None:
     assert capsys.readouterr().out.startswith("qm-template ")
 
 
+def test_create_parser_accepts_pve() -> None:
+    args = build_parser().parse_args(["create", "--pve", "home"])
+    assert args.pve == "home"
+    assert build_parser().parse_args(["create"]).pve is None
+
+
 def test_verbose_flag_counts_repetitions() -> None:
     parser = build_parser()
     assert getattr(parser.parse_args(["distros"]), "verbose", 0) == 0
@@ -193,10 +199,10 @@ def test_create_dry_run_prints_pretty_command(
         '[cloudinit]\nsshkeys = ["ssh-ed25519 AAAA"]\n'
     )
     monkeypatch.setattr(
-        "qm_template.commands.vm_config_path",
+        "qm_template.pve.vm_config_path",
         lambda vm_id: tmp_path / f"{vm_id}.conf",
     )
-    monkeypatch.setattr("qm_template.commands.check_storage", lambda _storage: None)
+    monkeypatch.setattr("qm_template.pve.check_storage", lambda _storage: None)
     assert (
         main(["create", "--dry-run", "--vm-id", "9000", "--config", str(config)]) == 0
     )
@@ -222,10 +228,10 @@ def test_create_dry_run_auto_selects_uefi_from_image_name(
         cloudinit='sshkeys = ["ssh-ed25519 AAAA"]\n',
     )
     monkeypatch.setattr(
-        "qm_template.commands.vm_config_path",
+        "qm_template.pve.vm_config_path",
         lambda vm_id: tmp_path / f"{vm_id}.conf",
     )
-    monkeypatch.setattr("qm_template.commands.check_storage", lambda _storage: None)
+    monkeypatch.setattr("qm_template.pve.check_storage", lambda _storage: None)
     assert (
         main(["create", "--dry-run", "--vm-id", "9000", "--config", str(config)]) == 0
     )
@@ -248,10 +254,10 @@ def test_create_dry_run_firmware_override(
         cloudinit='sshkeys = ["ssh-ed25519 AAAA"]\n',
     )
     monkeypatch.setattr(
-        "qm_template.commands.vm_config_path",
+        "qm_template.pve.vm_config_path",
         lambda vm_id: tmp_path / f"{vm_id}.conf",
     )
-    monkeypatch.setattr("qm_template.commands.check_storage", lambda _storage: None)
+    monkeypatch.setattr("qm_template.pve.check_storage", lambda _storage: None)
     assert (
         main(
             [
@@ -284,10 +290,10 @@ def test_create_dry_run_includes_metadata_options(
         cloudinit='sshkeys = ["ssh-ed25519 AAAA"]\n',
     )
     monkeypatch.setattr(
-        "qm_template.commands.vm_config_path",
+        "qm_template.pve.vm_config_path",
         lambda vm_id: tmp_path / f"{vm_id}.conf",
     )
-    monkeypatch.setattr("qm_template.commands.check_storage", lambda _storage: None)
+    monkeypatch.setattr("qm_template.pve.check_storage", lambda _storage: None)
     assert (
         main(
             [
@@ -329,10 +335,10 @@ def test_create_picks_next_free_vm_id(
         cloudinit='sshkeys = ["ssh-ed25519 AAAA"]\n',
         vmid="start = 9000\nstep = 5\n",
     )
-    monkeypatch.setattr("qm_template.commands.used_vm_ids", lambda: {9000, 9005})
-    monkeypatch.setattr("qm_template.commands.check_storage", lambda _storage: None)
+    monkeypatch.setattr("qm_template.pve.used_vm_ids", lambda: {9000, 9005})
+    monkeypatch.setattr("qm_template.pve.check_storage", lambda _storage: None)
     monkeypatch.setattr(
-        "qm_template.commands.vm_config_path", lambda vm_id: tmp_path / f"{vm_id}.conf"
+        "qm_template.pve.vm_config_path", lambda vm_id: tmp_path / f"{vm_id}.conf"
     )
     assert main(["create", "--dry-run", "--config", str(config)]) == 0
     assert capsys.readouterr().out.startswith("qm create 9010 \\\n")
@@ -349,7 +355,7 @@ def test_create_rejects_an_used_vm_id(
     )
     existing = tmp_path / "9000.conf"
     existing.write_text("")
-    monkeypatch.setattr("qm_template.commands.vm_config_path", lambda vm_id: existing)
+    monkeypatch.setattr("qm_template.pve.vm_config_path", lambda vm_id: existing)
     assert main(["create", "--vm-id", "9000", "--config", str(config)]) == 1
 
 
@@ -415,9 +421,9 @@ def test_create_reports_a_partially_created_vm(
         created.write_text("")
         raise QmTemplateError("qm create failed with exit status 1")
 
-    monkeypatch.setattr("qm_template.commands.vm_config_path", fake_config_path)
-    monkeypatch.setattr("qm_template.commands.check_storage", lambda _storage: None)
-    monkeypatch.setattr("qm_template.commands.run_qm", fake_run_qm)
+    monkeypatch.setattr("qm_template.pve.vm_config_path", fake_config_path)
+    monkeypatch.setattr("qm_template.pve.check_storage", lambda _storage: None)
+    monkeypatch.setattr("qm_template.pve.run_qm", fake_run_qm)
     assert main(["create", "--vm-id", "9000", "--config", str(config)]) == 1
     assert "qm destroy 9000" in capsys.readouterr().err
 
@@ -613,9 +619,9 @@ def test_create_prompts_when_multiple_images_match(
         tmp_path, images, cloudinit='sshkeys = ["ssh-ed25519 AAAA"]\n'
     )
     monkeypatch.setattr("sys.stdin", io.StringIO("1\n"))
-    monkeypatch.setattr("qm_template.commands.check_storage", lambda _storage: None)
+    monkeypatch.setattr("qm_template.pve.check_storage", lambda _storage: None)
     monkeypatch.setattr(
-        "qm_template.commands.vm_config_path", lambda vm_id: tmp_path / f"{vm_id}.conf"
+        "qm_template.pve.vm_config_path", lambda vm_id: tmp_path / f"{vm_id}.conf"
     )
     assert (
         main(["create", "--dry-run", "--vm-id", "9000", "--config", str(config)]) == 0
@@ -647,11 +653,11 @@ def test_create_reports_success(
     config = write_config(
         tmp_path, images, cloudinit='sshkeys = ["ssh-ed25519 AAAA"]\n'
     )
-    monkeypatch.setattr("qm_template.commands.check_storage", lambda _storage: None)
+    monkeypatch.setattr("qm_template.pve.check_storage", lambda _storage: None)
     monkeypatch.setattr(
-        "qm_template.commands.vm_config_path", lambda vm_id: tmp_path / f"{vm_id}.conf"
+        "qm_template.pve.vm_config_path", lambda vm_id: tmp_path / f"{vm_id}.conf"
     )
-    monkeypatch.setattr("qm_template.commands.run_qm", lambda _command: None)
+    monkeypatch.setattr("qm_template.pve.run_qm", lambda _command: None)
     assert main(["create", "--vm-id", "9000", "--config", str(config)]) == 0
     assert "created" in capsys.readouterr().err
 

@@ -5,6 +5,7 @@ from qm_template.cloudinit import (
     collect_ssh_keys,
     meta_data,
     network_config,
+    require_ssh_keys,
     sshkeys_file,
     user_data,
 )
@@ -44,16 +45,15 @@ def test_cloudinit_settings_reject_invalid_inline_entry():
 def test_sshkeys_file_writes_and_removes_temporary_file(tmp_path):
     keys = tmp_path / "id_ed25519.pub"
     keys.write_text("ssh-ed25519 CCCC\ngarbage line\n")
-    settings = CloudInitSettings(sshkeys_files=(str(keys),))
-    with sshkeys_file(settings) as path:
+    collected = collect_ssh_keys(CloudInitSettings(sshkeys_files=(str(keys),)))
+    with sshkeys_file(collected) as path:
         assert path.read_text() == "ssh-ed25519 CCCC\n"
     assert not path.exists()
 
 
-def test_sshkeys_file_requires_keys():
+def test_require_ssh_keys_requires_keys():
     with pytest.raises(QmTemplateError):
-        with sshkeys_file(CloudInitSettings()):
-            pass
+        require_ssh_keys(CloudInitSettings())
 
 
 def test_user_data_configures_the_cloud_user():

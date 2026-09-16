@@ -1,7 +1,7 @@
 import contextlib
 import os
 import tempfile
-from collections.abc import Generator
+from collections.abc import Generator, Sequence
 from pathlib import Path
 
 from qm_template import PROGRAM
@@ -46,12 +46,7 @@ def collect_ssh_keys(settings: CloudInitSettings) -> tuple[str, ...]:
 
 
 @contextlib.contextmanager
-def sshkeys_file(settings: CloudInitSettings) -> Generator[Path, None, None]:
-    keys = collect_ssh_keys(settings)
-    if not keys:
-        raise QmTemplateError(
-            "no SSH keys configured; set cloudinit.sshkeys or cloudinit.sshkeys_files"
-        )
+def sshkeys_file(keys: Sequence[str]) -> Generator[Path, None, None]:
     with tempfile.NamedTemporaryFile(
         "w", prefix=f"{PROGRAM}-sshkeys-", delete=False
     ) as handle:
@@ -61,6 +56,16 @@ def sshkeys_file(settings: CloudInitSettings) -> Generator[Path, None, None]:
         yield temporary
     finally:
         temporary.unlink(missing_ok=True)
+
+
+def require_ssh_keys(settings: CloudInitSettings) -> tuple[str, ...]:
+    """Collect the SSH keys required to create a template."""
+    keys = collect_ssh_keys(settings)
+    if not keys:
+        raise QmTemplateError(
+            "no SSH keys configured; set cloudinit.sshkeys or cloudinit.sshkeys_files"
+        )
+    return keys
 
 
 def _yaml_string(value: str) -> str:
