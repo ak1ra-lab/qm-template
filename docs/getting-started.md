@@ -82,6 +82,11 @@ arch = "arm64"
 base_url = "https://mirror.example.org/debian-cloud"
 ```
 
+Every parameter listed by `qm-template distros` is validated per distro and is
+also exposed as a command-line option for `download` (for example `--release`,
+`--variant`, `--fs` or `--firmware`); passing an option a distro does not
+declare is an error. `base_url` is the exception: it is configuration-only.
+
 `base_url` points a distro at an upstream or mirror that mirrors the expected
 directory layout; the checksum file and its signature are fetched from the same
 base. Where upstream signs its metadata (Ubuntu, Fedora, Rocky, AlmaLinux,
@@ -128,9 +133,10 @@ eval "$(register-python-argcomplete qm-template)"
 ```
 
 Add the relevant lines to `~/.bashrc`/`~/.zshrc`. Command names, options and
-per-distro parameter values are completed; `--release`/`--variant`/`--arch`/
-`--tag` complete against the distro named on the command line, with values
-only for the parameters that distro supports.
+per-distro parameter values are completed; every distro parameter flag
+(`--release`, `--variant`, `--arch`, `--tag`, `--fs`, `--firmware`, ...)
+completes against the distro named on the command line, with values only for
+the parameters that distro supports.
 
 ## Download an image
 
@@ -157,9 +163,11 @@ server, Arch Linux, openSUSE Tumbleweed), and Amazon Linux 2023 resolves
 alongside the old one instead of overwriting it. FreeBSD images are distributed
 as `.xz` archives: the archive is verified, extracted to `.qcow2` and removed,
 and a local checksum sidecar lets later runs detect the up-to-date image. `--tag`
-selects a specific
-build and is only accepted by distros that support it (Debian and Fedora;
-`qm-template distros` marks it). Interrupted downloads are
+pins a specific upstream build and is accepted by the distros that declare it
+(Debian, Fedora, Arch Linux and Amazon Linux 2023; `qm-template distros` lists
+them). Alpine images can be downloaded for BIOS or UEFI with `--firmware`
+(`auto` follows the architecture), and the resulting filename makes `create`
+pick the matching Proxmox firmware. Interrupted downloads are
 resumed on the next run; partial files are stored as `<image>.part`. A failed
 download is retried from scratch with the same downloader and never switches to
 another one; a completed download that fails checksum verification is downloaded
@@ -262,7 +270,7 @@ debian       Debian GNU/Linux
   variant = genericcloud   choices: generic, genericcloud
   arch = amd64             choices: amd64, arm64
   tag = -                  dated build; the newest is used when omitted
-  base_url = https://cdimage.debian.org/images/cloud upstream or mirror base URL
+  base_url = https://cdimage.debian.org/images/cloud upstream or mirror base URL; config file only
 ```
 
 ## Development

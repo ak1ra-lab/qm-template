@@ -9,15 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add FreeBSD (`freebsd`) VM images: `variant` selects the `cloudinit` or
-  `base` image, `fs` selects `ufs` or `zfs`, and `arch` supports `amd64` and
-  `aarch64`. FreeBSD ships `.xz` archives; the archive is verified against the
-  upstream `CHECKSUM.SHA256`, extracted to `.qcow2` and removed, with a local
-  checksum sidecar so a later run detects the up-to-date image.
-- Add Amazon Linux 2023 (`amazonlinux`): `release = "latest"` resolves the
-  current version directory and pins it, `arch` supports `x86_64` and
-  `aarch64`, and the checksum comes from the version's `SHA256SUMS`. Amazon's
-  RSA-signed `SHA256SUMS` is not verified yet, only the HTTPS checksum.
+- Add FreeBSD (`freebsd`) VM images: `fs` selects `ufs` or `zfs`, `arch`
+  supports `amd64` and `aarch64`, and only the `BASIC-CLOUDINIT` images are
+  offered because `create` and `prepare` require Cloud-Init. FreeBSD ships
+  `.xz` archives; the archive is verified against the upstream
+  `CHECKSUM.SHA256`, extracted to `.qcow2` and removed, with a local checksum
+  sidecar so a later run detects the up-to-date image.
+- Add Amazon Linux 2023 (`amazonlinux`): the newest version is used when `tag`
+  is omitted, otherwise `tag` pins a version like `2023.12.20260914.0`; `arch`
+  supports `x86_64` and `aarch64`, and the checksum comes from the version's
+  `SHA256SUMS`. Amazon's RSA-signed `SHA256SUMS` is not verified yet, only the
+  HTTPS checksum.
+- Add `firmware` (`auto`, `bios` or `uefi`) to the Alpine parameters; `auto`
+  selects BIOS on `x86_64`, UEFI on `aarch64`, and the resulting filename makes
+  `create` choose the matching Proxmox firmware.
 - Verify upstream GPG signatures when downloading: Ubuntu, Fedora, Rocky Linux,
   AlmaLinux and openSUSE provide signed checksum files (Fedora clearsigned,
   the rest detached), while Alpine and Arch Linux sign the image itself.
@@ -36,6 +41,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   requiring `genisoimage`.
 - Allow `prepare` to run without SSH keys: the seed then only enables password
   login and a warning is logged. `create` still requires at least one key.
+
+### Changed
+
+- Drive the download CLI and the `[distro.<name>]` configuration from each
+  distro's declared options: every option (for example FreeBSD's `fs` and
+  Alpine's `firmware`) is now configurable both in the configuration file and
+  through a matching command-line flag, with per-distro validation and
+  completion. `base_url` remains configuration-only. Free-form values such as
+  Alpine's release series or Amazon's version are validated against a pattern
+  before any network access.
+- Select a build or version with `tag` for Arch Linux and Amazon Linux 2023
+  instead of overloading `release` with a `latest` sentinel; omitting `tag`
+  keeps resolving the newest one. `--tag` is accepted by every distro that
+  declares the parameter.
+- Reject unsupported `[distro.<name>]` keys and values with the distro's own
+  parameter list, and accept arbitrary declared parameters instead of a fixed
+  five-key set.
+
+### Removed
+
+- Remove the FreeBSD `variant` parameter: only the upstream `BASIC-CLOUDINIT`
+  images are supported, so the no-Cloud-Init images can no longer be selected
+  by mistake.
+- Remove the single-choice `variant` parameters of CentOS Stream, openSUSE and
+  Arch Linux; they were constants rather than knobs. Arch Linux now selects the
+  build with `tag`.
 
 ## [0.3.2] - 2026-09-16
 

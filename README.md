@@ -126,6 +126,12 @@ arch = "arm64"
 base_url = "https://mirror.example.org/debian-cloud"
 ```
 
+`qm-template distros` lists every parameter with its default and accepted
+values; each parameter is validated per distro and also has a `download`
+command-line option (for example `--release`, `--fs` or `--firmware`), except
+`base_url`, which is configuration-only. Passing an option a distro does not
+declare is an error.
+
 `base_url` points a distro at an upstream or mirror that mirrors the expected
 directory layout; the checksum file and its signature are fetched from the same
 base. Upstream signatures are verified against keys fetched from the distro's
@@ -165,6 +171,8 @@ qm-template download
 qm-template download debian
 qm-template download ubuntu --release noble --variant minimal
 qm-template download debian --release bookworm --tag 20260907-2594
+qm-template download freebsd --fs zfs
+qm-template download alpine --firmware uefi
 
 # print the first available downloader's command without running it
 qm-template download -n alpine
@@ -297,22 +305,23 @@ settings; pass `--force`/`-f` to convert again.
 ## Supported distros
 
 `qm-template distros` is the authoritative list, including the accepted values
-of every parameter. Only Debian and Fedora accept `--tag` for a specific
-build; using it with any other distro is an error. Defaults:
+of every parameter. `--tag` pins a specific build and is accepted by the distros
+that declare it (Debian, Fedora, Arch Linux and Amazon Linux 2023); using it
+with any other distro is an error. Defaults:
 
-| Name        | Default release | Default variant | Notes                             |
-| ----------- | --------------- | --------------- | --------------------------------- |
-| `debian`    | `trixie`        | `genericcloud`  | `--release` accepts `-backports`  |
-| `ubuntu`    | `resolute`      | `server`        | variant `minimal` also supported  |
-| `rocky`     | `10`            | `GenericCloud`  | variant `GenericCloud-LVM`        |
-| `almalinux` | `10`            | `GenericCloud`  | variant `GenericCloud-ext4`       |
-| `fedora`    | `44`            | `Generic`       | variant `UEFI-UKI`                |
-| `centos`    | `10`            | `GenericCloud`  | CentOS Stream                     |
-| `alpine`    | `3.24`          | `generic`       | BIOS firmware, Cloud-Init enabled |
-| `opensuse`  | `tumbleweed`    | `Minimal`       | `--release 15.6` for Leap         |
-| `archlinux` | `latest`        | `cloudimg`      | only the cloudimg variant         |
-| `freebsd`   | `15.1`          | `cloudinit`     | `.xz` archive; `fs = ufs`/`zfs`   |
-| `amazonlinux` | `latest`      | -               | AL2023; pins the resolved version |
+| Name          | Default release | Default variant | Notes                                        |
+| ------------- | --------------- | --------------- | -------------------------------------------- |
+| `debian`      | `trixie`        | `genericcloud`  | `--release` accepts `-backports`             |
+| `ubuntu`      | `resolute`      | `server`        | variant `minimal` also supported             |
+| `rocky`       | `10`            | `GenericCloud`  | variant `GenericCloud-LVM`                   |
+| `almalinux`   | `10`            | `GenericCloud`  | variant `GenericCloud-ext4`                  |
+| `fedora`      | `44`            | `Generic`       | variant `UEFI-UKI`                           |
+| `centos`      | `10`            | -               | CentOS Stream                                |
+| `alpine`      | `3.24`          | `generic`       | `--firmware auto/bios/uefi`; Cloud-Init      |
+| `opensuse`    | `tumbleweed`    | -               | `--release 15.6` for Leap                    |
+| `archlinux`   | newest build    | -               | pick a build with `--tag`                    |
+| `freebsd`     | `15.1`          | -               | `.xz` archive; `--fs ufs`/`zfs`              |
+| `amazonlinux` | newest version  | -               | AL2023; pick a version with `--tag`          |
 
 ## Development
 

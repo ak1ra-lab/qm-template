@@ -72,6 +72,10 @@ arch = "arm64"
 base_url = "https://mirror.example.org/debian-cloud"
 ```
 
+`qm-template distros` 列出的每个参数都会按发行版校验，并且在 `download` 中有对应的
+命令行选项（例如 `--release`、`--variant`、`--fs`、`--firmware`）；给某个发行版传入
+它没有声明的参数会报错。唯一的例外是 `base_url`，它只能通过配置文件设置。
+
 `base_url` 用于把某个发行版指向上游或镜像站，镜像站必须保持上游的目录结构；校验和
 文件及其签名也从同一个 base 获取。Ubuntu、Fedora、Rocky、AlmaLinux、openSUSE、
 Alpine 和 Arch Linux 对元数据签名，校验和在被信任之前会先用 `gpg` 验证；签名公钥
@@ -112,8 +116,9 @@ eval "$(register-python-argcomplete qm-template)"
 ```
 
 把对应行加入 `~/.bashrc`/`~/.zshrc`。补全覆盖命令名、选项以及按发行版的参数值；
-`--release`/`--variant`/`--arch`/`--tag` 会根据命令行中指定的发行版给出候选值，
-不支持某个参数的发行版不会给出该参数的候选。
+每个发行版参数选项（`--release`、`--variant`、`--arch`、`--tag`、`--fs`、
+`--firmware` 等）都会根据命令行中指定的发行版给出候选值，不支持某个参数的发行版
+不会给出该参数的候选。
 
 ## 下载镜像
 
@@ -137,8 +142,10 @@ qm-template download -q alpine
 Tumbleweed）会固定到最新构建，Amazon Linux 2023 会把 `/latest/` 解析为当前版本并
 固定，新构建会与旧构建并存而不是覆盖。FreeBSD 镜像以 `.xz` 归档分发：归档会先校验，
 再解压为 `.qcow2` 并删除归档，同时保存本地校验和 sidecar，后续运行可直接判定为最新。
-`--tag` 用于选择具体构建，只有支持它的发行版才会接受（目前是 Debian 和 Fedora，
-`qm-template distros` 会标注）。中断的下载会在下次运行时
+`--tag` 用于固定具体构建，只有声明了该参数的发行版才接受（Debian、Fedora、Arch
+Linux 和 Amazon Linux 2023，`qm-template distros` 会列出）。Alpine 镜像可用
+`--firmware` 选择 BIOS 或 UEFI（`auto` 按架构决定），生成的文件名会让 `create`
+自动选择对应的 Proxmox 固件。中断的下载会在下次运行时
 续传，未完成的文件保存为 `<image>.part`。下载失败会使用同一个下载器从零重试，不会切换
 到其他下载器；下载完成但校验和不匹配时会再从头下载一次，仍失败才报错。校验和文件与目录
 列表在遇到瞬时 5xx 或网络错误时会按指数退避重试。上游提供签名元数据时（Ubuntu、
@@ -229,7 +236,7 @@ debian       Debian GNU/Linux
   variant = genericcloud   choices: generic, genericcloud
   arch = amd64             choices: amd64, arm64
   tag = -                  dated build; the newest is used when omitted
-  base_url = https://cdimage.debian.org/images/cloud upstream or mirror base URL
+  base_url = https://cdimage.debian.org/images/cloud upstream or mirror base URL; config file only
 ```
 
 ## 开发
