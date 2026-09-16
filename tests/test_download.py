@@ -1,3 +1,5 @@
+import hashlib
+import lzma
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -10,6 +12,7 @@ from qm_template.download import (
     Curl,
     Wget,
     download_image,
+    extract_image,
     part_path,
     select_downloader,
 )
@@ -47,6 +50,42 @@ def test_connection_options_are_forwarded(tmp_path):
 
 def test_part_path_appends_part_suffix(tmp_path):
     assert part_path(tmp_path / "image.qcow2") == tmp_path / "image.qcow2.part"
+
+
+def compressed_image(tmp_path: Path) -> RemoteImage:
+    return RemoteImage(
+        distro="freebsd",
+        release="15.1",
+        filename="image.qcow2.xz",
+        url="https://example.com/image.qcow2.xz",
+        checksum_url="https://example.com/CHECKSUM.SHA256",
+        algorithm="sha256",
+        compression="xz",
+    )
+
+
+def test_extract_image_decompresses_xz(tmp_path):
+    archive = tmp_path / "image.qcow2.xz"
+    with lzma.open(archive, "wb") as handle:
+        handle.write(b"freebsd image")
+    target, digest = extract_image(archive, compressed_image(tmp_path))
+    assert target == tmp_path / "image.qcow2"
+    assert target.read_bytes() == b"freebsd image"
+    assert digest == hashlib.sha256(b"freebsd image").hexdigest()
+    assert not target.with_name(target.name + ".part").exists()
+
+
+def test_extract_image_rejects_unknown_compression(tmp_path):
+    image = RemoteImage(
+        distro="freebsd",
+        release="15.1",
+        filename="image.qcow2",
+        url="https://example.com/image.qcow2",
+        checksum_url="https://example.com/CHECKSUM.SHA256",
+        algorithm="sha256",
+    )
+    with pytest.raises(QmTemplateError):
+        extract_image(tmp_path / "image.qcow2", image)
 
 
 def test_select_downloader_rejects_empty_preference():

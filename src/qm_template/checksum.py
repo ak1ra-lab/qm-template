@@ -66,11 +66,24 @@ def verify_checksum(path: Path, expected: str, algorithm: str) -> bool:
 
 def save_checksum(path: Path, digest: str, algorithm: str) -> Path:
     """Write a sha256sum-compatible checksum file next to the image."""
+    target = _sidecar(path, algorithm)
+    target.write_text(f"{digest.lower()}  {path.name}\n", encoding="ascii")
+    log.debug("Wrote checksum file: %s", target)
+    return target
+
+
+def read_checksum(path: Path, algorithm: str) -> str | None:
+    """Return the digest saved next to an image, if there is one."""
+    sidecar = _sidecar(path, algorithm)
+    if not sidecar.is_file():
+        return None
+    fields = sidecar.read_text(encoding="ascii").split()
+    return fields[0].lower() if fields else None
+
+
+def _sidecar(path: Path, algorithm: str) -> Path:
     try:
         suffix = _CHECKSUM_SUFFIXES[algorithm]
     except KeyError:
         raise QmTemplateError(f"unsupported checksum algorithm: {algorithm}") from None
-    target = path.with_name(path.name + suffix)
-    target.write_text(f"{digest.lower()}  {path.name}\n", encoding="ascii")
-    log.debug("Wrote checksum file: %s", target)
-    return target
+    return path.with_name(path.name + suffix)

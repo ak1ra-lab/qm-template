@@ -1,3 +1,5 @@
+import hashlib
+import lzma
 import shutil
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
@@ -121,6 +123,26 @@ def select_downloader(
 
 def part_path(destination: Path) -> Path:
     return destination.with_name(destination.name + ".part")
+
+
+def extract_image(archive: Path, image: RemoteImage) -> tuple[Path, str]:
+    """Decompress an upstream image archive, returning its path and sha256."""
+    if image.compression != "xz":
+        raise QmTemplateError(f"unsupported compression: {image.compression!r}")
+    target = archive.with_name(image.extracted_name)
+    staged = target.with_name(target.name + ".part")
+    digest = hashlib.sha256()
+    try:
+        with lzma.open(archive, "rb") as source, staged.open("wb") as sink:
+            while chunk := source.read(1024 * 1024):
+                digest.update(chunk)
+                sink.write(chunk)
+        staged.replace(target)
+    except BaseException:
+        staged.unlink(missing_ok=True)
+        raise
+    log.info("Extracted %s", target)
+    return target, digest.hexdigest()
 
 
 def _run_downloader(url: str, part: Path, downloader: Downloader) -> bool:

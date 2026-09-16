@@ -4,9 +4,11 @@ import pytest
 
 from qm_template.distros import DISTROS
 from qm_template.distros.alpine import Alpine
+from qm_template.distros.amazonlinux import AmazonLinux
 from qm_template.distros.archlinux import ArchLinux
 from qm_template.distros.base import RemoteImage
 from qm_template.distros.debian import Debian
+from qm_template.distros.freebsd import FreeBSD
 from qm_template.distros.opensuse import OpenSUSE
 from qm_template.distros.redhat import (
     AlmaLinux,
@@ -61,6 +63,8 @@ def test_registry_contains_expected_distros():
         "alpine",
         "opensuse",
         "archlinux",
+        "freebsd",
+        "amazonlinux",
     }
 
 
@@ -420,3 +424,83 @@ def test_debian_and_centos_have_no_upstream_signature(monkeypatch):
     )
     centos = CentOSStream()
     assert centos.resolve(centos.merge({}, {})).signature is None
+
+
+def test_freebsd_resolves_the_cloudinit_image():
+    distro = FreeBSD()
+    image = distro.resolve(distro.merge({}, {}))
+    assert image.filename == ("FreeBSD-15.1-RELEASE-amd64-BASIC-CLOUDINIT-ufs.qcow2.xz")
+    assert image.url == (
+        "https://download.freebsd.org/ftp/releases/VM-IMAGES/15.1-RELEASE/"
+        "amd64/Latest/FreeBSD-15.1-RELEASE-amd64-BASIC-CLOUDINIT-ufs.qcow2.xz"
+    )
+    assert image.checksum_url.endswith("/amd64/Latest/CHECKSUM.SHA256")
+    assert image.compression == "xz"
+    assert image.extracted_name == (
+        "FreeBSD-15.1-RELEASE-amd64-BASIC-CLOUDINIT-ufs.qcow2"
+    )
+    assert image.signature is None
+    assert image.local_path == Path("freebsd/15.1") / image.filename
+
+
+def test_freebsd_aarch64_uses_the_arm64_aarch64_token():
+    distro = FreeBSD()
+    image = distro.resolve(
+        distro.merge({}, {"arch": "aarch64", "variant": "base", "fs": "zfs"})
+    )
+    assert image.filename == "FreeBSD-15.1-RELEASE-arm64-aarch64-zfs.qcow2.xz"
+
+
+def test_amazonlinux_resolves_the_latest_version(monkeypatch):
+    monkeypatch.setattr(
+        "qm_template.distros.base.list_directory",
+        lambda _url: [
+            "al2023-kvm-2023.9.20250908.0-kernel-6.1-x86_64.xfs.gpt.qcow2",
+            "al2023-kvm-2023.12.20260914.0-kernel-6.1-x86_64.xfs.gpt.qcow2",
+        ],
+    )
+    distro = AmazonLinux()
+    image = distro.resolve(distro.merge({}, {}))
+    assert image.release == "2023.12.20260914.0"
+    assert image.filename == (
+        "al2023-kvm-2023.12.20260914.0-kernel-6.1-x86_64.xfs.gpt.qcow2"
+    )
+    assert image.url == (
+        "https://cdn.amazonlinux.com/al2023/os-images/2023.12.20260914.0/kvm/"
+        "al2023-kvm-2023.12.20260914.0-kernel-6.1-x86_64.xfs.gpt.qcow2"
+    )
+    assert image.checksum_url == (
+        "https://cdn.amazonlinux.com/al2023/os-images/2023.12.20260914.0/kvm/SHA256SUMS"
+    )
+    assert image.local_path == Path("amazonlinux/2023.12.20260914.0") / image.filename
+    assert image.signature is None
+
+
+def test_amazonlinux_arm64_uses_the_kvm_arm64_directory(monkeypatch):
+    seen: list[str] = []
+
+    def listing(url: str) -> list[str]:
+        seen.append(url)
+        return ["al2023-kvm-2023.12.20260914.0-kernel-6.1-arm64.xfs.gpt.qcow2"]
+
+    monkeypatch.setattr("qm_template.distros.base.list_directory", listing)
+    distro = AmazonLinux()
+    image = distro.resolve(distro.merge({}, {"arch": "aarch64"}))
+    assert seen == ["https://cdn.amazonlinux.com/al2023/os-images/latest/kvm-arm64/"]
+    assert image.filename.endswith("-arm64.xfs.gpt.qcow2")
+
+
+def test_amazonlinux_accepts_an_explicit_version(monkeypatch):
+    seen: list[str] = []
+
+    def listing(url: str) -> list[str]:
+        seen.append(url)
+        return ["al2023-kvm-2023.12.20260914.0-kernel-6.1-x86_64.xfs.gpt.qcow2"]
+
+    monkeypatch.setattr("qm_template.distros.base.list_directory", listing)
+    distro = AmazonLinux()
+    image = distro.resolve(distro.merge({}, {"release": "2023.12.20260914.0"}))
+    assert seen == [
+        "https://cdn.amazonlinux.com/al2023/os-images/2023.12.20260914.0/kvm/"
+    ]
+    assert image.release == "2023.12.20260914.0"

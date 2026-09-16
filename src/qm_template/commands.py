@@ -7,7 +7,12 @@ from pathlib import Path
 from typing import Any
 
 from qm_template import PROGRAM
-from qm_template.checksum import fetch_checksum, save_checksum, verify_checksum
+from qm_template.checksum import (
+    fetch_checksum,
+    read_checksum,
+    save_checksum,
+    verify_checksum,
+)
 from qm_template.cloudinit import (
     meta_data,
     network_config,
@@ -24,6 +29,7 @@ from qm_template.distros import DISTROS, RemoteImage
 from qm_template.download import (
     Downloader,
     download_image,
+    extract_image,
     part_path,
     select_downloader,
 )
@@ -127,6 +133,13 @@ def _download_verified(
     raise QmTemplateError("downloaded image failed checksum verification")
 
 
+def _extract(archive: Path, image: RemoteImage) -> Path:
+    target, digest = extract_image(archive, image)
+    save_checksum(target, digest, "sha256")
+    archive.unlink(missing_ok=True)
+    return target
+
+
 def run_download(args: argparse.Namespace, settings: Settings) -> None:
     name = args.distro or settings.download.default_distro
     distro = DISTROS.get(name)
@@ -159,6 +172,12 @@ def run_download(args: argparse.Namespace, settings: Settings) -> None:
         print(pretty(downloader.build_command(image.url, part_path(destination))))
         return
     destination.parent.mkdir(parents=True, exist_ok=True)
+    if image.compression is not None:
+        extracted = destination.with_name(image.extracted_name)
+        digest = read_checksum(extracted, "sha256")
+        if digest is not None and verify_checksum(extracted, digest, "sha256"):
+            log.info("Already up to date: %s", extracted)
+            return
     expected = fetch_checksum(
         image.checksum_url,
         image.filename,
@@ -167,8 +186,11 @@ def run_download(args: argparse.Namespace, settings: Settings) -> None:
     )
     if destination.is_file():
         if verify_checksum(destination, expected, image.algorithm):
-            save_checksum(destination, expected, image.algorithm)
-            log.info("Already up to date: %s", destination)
+            if image.compression is None:
+                save_checksum(destination, expected, image.algorithm)
+                log.info("Already up to date: %s", destination)
+            else:
+                _extract(destination, image)
             return
         log.warning("Checksum mismatch for %s, removing it", destination)
         destination.unlink()
@@ -180,8 +202,11 @@ def run_download(args: argparse.Namespace, settings: Settings) -> None:
     ):
         verify_image(part, image.signature)
     part.replace(destination)
-    save_checksum(destination, expected, image.algorithm)
-    log.info("Saved %s", destination)
+    if image.compression is None:
+        save_checksum(destination, expected, image.algorithm)
+        log.info("Saved %s", destination)
+    else:
+        _extract(destination, image)
 
 
 def add_create_arguments(parser: argparse.ArgumentParser) -> None:

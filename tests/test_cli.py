@@ -1,5 +1,6 @@
 import hashlib
 import io
+import lzma
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -515,6 +516,50 @@ def test_download_replaces_a_corrupt_existing_image(
     assert "Saved" in captured.err
     assert image.read_bytes() == b"good"
     assert image.with_name(image.name + ".sha512").is_file()
+
+
+def test_download_extracts_an_xz_image(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    images = tmp_path / "images"
+    config = write_config(tmp_path, images)
+    extracted = (
+        images
+        / "freebsd"
+        / "15.1"
+        / "FreeBSD-15.1-RELEASE-amd64-BASIC-CLOUDINIT-ufs.qcow2"
+    )
+    archive = extracted.with_name(extracted.name + ".xz")
+
+    def fake_verified(_image, destination, _downloader, _expected):
+        part = part_path(destination)
+        part.parent.mkdir(parents=True, exist_ok=True)
+        with lzma.open(part, "wb") as handle:
+            handle.write(b"freebsd image")
+        return part
+
+    monkeypatch.setattr(
+        "qm_template.commands.fetch_checksum", lambda *_args, **_kwargs: "0" * 64
+    )
+    monkeypatch.setattr(
+        "qm_template.commands.select_downloader", lambda *_args, **_kwargs: None
+    )
+    monkeypatch.setattr("qm_template.commands._download_verified", fake_verified)
+    assert main(["download", "freebsd", "--config", str(config)]) == 0
+    capsys.readouterr()
+    assert extracted.read_bytes() == b"freebsd image"
+    assert not archive.exists()
+    assert extracted.with_name(extracted.name + ".sha256").is_file()
+
+    def unexpected(*_args, **_kwargs):
+        raise AssertionError("should not download again")
+
+    monkeypatch.setattr("qm_template.commands._download_verified", unexpected)
+    monkeypatch.setattr("qm_template.commands.fetch_checksum", unexpected)
+    assert main(["download", "freebsd", "--config", str(config)]) == 0
+    assert "Already up to date" in capsys.readouterr().err
 
 
 def test_create_prompts_when_multiple_images_match(

@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 from qm_template.errors import QmTemplateError
 from qm_template.http import latest_name, list_directory
@@ -59,6 +59,18 @@ class RemoteImage:
     algorithm: str
     tag: str | None = None
     signature: Signature | None = None
+    compression: Literal["xz"] | None = None
+
+    @property
+    def extracted_name(self) -> str:
+        """Filename of the usable image after decompression."""
+        if self.compression is None:
+            return self.filename
+        if self.compression == "xz" and self.filename.endswith(".xz"):
+            return self.filename.removesuffix(".xz")
+        raise QmTemplateError(
+            f"cannot extract {self.filename!r} with compression {self.compression!r}"
+        )
 
     @property
     def local_path(self) -> Path:

@@ -5,6 +5,7 @@ import pytest
 from qm_template.checksum import (
     fetch_checksum,
     parse_checksum,
+    read_checksum,
     save_checksum,
     verify_checksum,
 )
@@ -146,3 +147,16 @@ def test_save_checksum_writes_sha256sum_compatible_file(tmp_path):
 def test_save_checksum_rejects_unknown_algorithm(tmp_path):
     with pytest.raises(QmTemplateError):
         save_checksum(tmp_path / "image.qcow2", "a" * 64, "md5")
+
+
+def test_read_checksum_returns_the_saved_digest(tmp_path):
+    image = tmp_path / "image.qcow2"
+    image.write_bytes(b"cloud image")
+    assert read_checksum(image, "sha256") is None
+    save_checksum(image, "AB" * 32, "sha256")
+    assert read_checksum(image, "sha256") == "ab" * 32
+
+
+def test_read_checksum_rejects_unknown_algorithm(tmp_path):
+    with pytest.raises(QmTemplateError):
+        read_checksum(tmp_path / "image.qcow2", "md5")
