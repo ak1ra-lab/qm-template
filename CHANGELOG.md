@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-16
+
 ### Added
 
 - Add remote Proxmox VE API support: `create --pve <name>` creates the
@@ -28,6 +30,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Depend on `proxmoxer` (with `requests` and `requests-toolbelt`) for remote
   API mode.
+- Split the documentation into Getting Started, Configuration and per-command
+  Usage pages and add a Simplified Chinese README; the README is now a short
+  overview that links to the documentation site.
 
 ## [0.4.0] - 2026-09-16
 
