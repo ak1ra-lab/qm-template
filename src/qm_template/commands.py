@@ -14,7 +14,12 @@ from qm_template.cloudinit import (
     sshkeys_file,
     user_data,
 )
-from qm_template.config import CreateSettings, Settings, packaged_config_text
+from qm_template.config import (
+    FIRMWARE_VALUES,
+    CreateSettings,
+    Settings,
+    packaged_config_text,
+)
 from qm_template.distros import DISTROS, RemoteImage
 from qm_template.download import (
     Downloader,
@@ -37,6 +42,7 @@ from qm_template.prepare import (
 )
 from qm_template.pve import (
     MIN_VM_ID,
+    ResolvedFirmware,
     build_qm_create,
     check_storage,
     choose_image,
@@ -182,7 +188,7 @@ def add_create_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--bridge", help="network bridge")
     parser.add_argument(
         "--firmware",
-        choices=("auto", "bios", "uefi"),
+        choices=FIRMWARE_VALUES,
         help="VM firmware; auto uses uefi when the image name says UEFI",
     )
     parser.add_argument(
@@ -194,16 +200,12 @@ def add_create_arguments(parser: argparse.ArgumentParser) -> None:
 
 
 def run_create(args: argparse.Namespace, settings: Settings) -> None:
-    create = CreateSettings(
-        storage=args.storage if args.storage is not None else settings.create.storage,
-        cores=args.cores if args.cores is not None else settings.create.cores,
-        memory=args.memory if args.memory is not None else settings.create.memory,
-        cpu=args.cpu if args.cpu is not None else settings.create.cpu,
-        bridge=args.bridge if args.bridge is not None else settings.create.bridge,
-        firmware=(
-            args.firmware if args.firmware is not None else settings.create.firmware
-        ),
-    )
+    overrides = {
+        name: value
+        for name in CreateSettings.model_fields
+        if (value := getattr(args, name, None)) is not None
+    }
+    create = CreateSettings.model_validate(settings.create.model_dump() | overrides)
 
     images = find_images(settings.images_dir, args.pattern)
     if len(images) == 1:
@@ -212,7 +214,9 @@ def run_create(args: argparse.Namespace, settings: Settings) -> None:
     else:
         image = choose_image(images, settings.images_dir)
 
-    firmware = create.firmware if create.firmware != "auto" else detect_firmware(image)
+    firmware: ResolvedFirmware = (
+        create.firmware if create.firmware != "auto" else detect_firmware(image)
+    )
 
     vm_name = args.vm_name or default_vm_name(image)
     if args.vm_id is not None:

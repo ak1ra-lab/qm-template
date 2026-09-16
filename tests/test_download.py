@@ -161,7 +161,7 @@ def test_download_image_resumes_an_existing_part_file(monkeypatch, tmp_path):
         Path(argv[1]).write_bytes(b"partial data")
         return SimpleNamespace(returncode=0)
 
-    monkeypatch.setattr("qm_template.download.subprocess.run", fake_run)
+    monkeypatch.setattr("qm_template.download.run", fake_run)
     result = download_image(remote_image(), destination, FakeDownloader("only"))
     assert result.read_bytes() == b"partial data"
     assert calls == ["only"]
@@ -179,7 +179,7 @@ def test_download_image_retries_from_scratch(monkeypatch, tmp_path):
         Path(argv[1]).write_bytes(b"data")
         return SimpleNamespace(returncode=0)
 
-    monkeypatch.setattr("qm_template.download.subprocess.run", fake_run)
+    monkeypatch.setattr("qm_template.download.run", fake_run)
     part = download_image(remote_image(), destination, FakeDownloader("only"))
     assert part.read_bytes() == b"data"
     assert calls == ["only", "only"]
@@ -192,7 +192,7 @@ def test_download_image_raises_when_the_downloader_fails(monkeypatch, tmp_path):
         Path(argv[1]).write_bytes(b"partial")
         return SimpleNamespace(returncode=1)
 
-    monkeypatch.setattr("qm_template.download.subprocess.run", fake_run)
+    monkeypatch.setattr("qm_template.download.run", fake_run)
     with pytest.raises(QmTemplateError):
         download_image(remote_image(), destination, FakeDownloader("only"))
     assert part_path(destination).is_file()
@@ -202,9 +202,9 @@ def test_download_image_handles_missing_executable(monkeypatch, tmp_path):
     destination = tmp_path / "image.qcow2"
 
     def fake_run(_argv):
-        raise OSError("no such file")
+        raise QmTemplateError("could not run ghost: no such file")
 
-    monkeypatch.setattr("qm_template.download.subprocess.run", fake_run)
+    monkeypatch.setattr("qm_template.download.run", fake_run)
     with pytest.raises(QmTemplateError):
         download_image(remote_image(), destination, FakeDownloader("ghost"))
 
@@ -216,6 +216,6 @@ def test_download_image_rejects_empty_output(monkeypatch, tmp_path):
         Path(argv[1]).write_bytes(b"")
         return SimpleNamespace(returncode=0)
 
-    monkeypatch.setattr("qm_template.download.subprocess.run", fake_run)
+    monkeypatch.setattr("qm_template.download.run", fake_run)
     with pytest.raises(QmTemplateError):
         download_image(remote_image(), destination, FakeDownloader("only"))

@@ -1,6 +1,4 @@
-import shlex
 import shutil
-import subprocess
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from pathlib import Path
@@ -9,7 +7,7 @@ from typing import ClassVar
 from qm_template.distros import RemoteImage
 from qm_template.errors import QmTemplateError
 from qm_template.log import log
-from qm_template.shell import CommandGroups, flatten
+from qm_template.shell import CommandGroups, flatten, run
 
 
 class Downloader(ABC):
@@ -128,11 +126,10 @@ def part_path(destination: Path) -> Path:
 def _run_downloader(url: str, part: Path, downloader: Downloader) -> bool:
     argv = flatten(downloader.build_command(url, part))
     log.info("Downloading %s with %s", part.name, downloader.name)
-    log.debug("Running: %s", shlex.join(argv))
     try:
-        result = subprocess.run(argv)
-    except OSError as exc:
-        log.warning("could not run %s: %s", downloader.name, exc)
+        result = run(argv)
+    except QmTemplateError as exc:
+        log.warning("%s", exc)
         return False
     if result.returncode == 0 and part.is_file() and part.stat().st_size > 0:
         return True

@@ -6,7 +6,7 @@ import tomllib
 from collections.abc import Mapping
 from importlib import resources
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
 from pydantic import (
     BaseModel,
@@ -128,6 +128,10 @@ class DistroOverride(BaseModel):
         return value
 
 
+Firmware = Literal["auto", "bios", "uefi"]
+FIRMWARE_VALUES: tuple[Firmware, ...] = get_args(Firmware)
+
+
 class CreateSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -136,7 +140,7 @@ class CreateSettings(BaseModel):
     memory: int = Field(1024, ge=1)
     cpu: str = "host"
     bridge: str = "vmbr0"
-    firmware: Literal["auto", "bios", "uefi"] = "auto"
+    firmware: Firmware = "auto"
 
 
 class VmidSettings(BaseModel):

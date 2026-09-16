@@ -50,25 +50,25 @@ def test_require_tool_raises_when_missing(monkeypatch):
 
 def test_run_tool_reports_failure(monkeypatch):
     monkeypatch.setattr(
-        "qm_template.prepare.subprocess.run",
+        "qm_template.prepare.run",
         lambda *_args, **_kwargs: SimpleNamespace(returncode=2),
     )
-    with pytest.raises(QmTemplateError):
+    with pytest.raises(QmTemplateError, match="qemu-img"):
+        run_tool([["qemu-img", "convert"]])
+
+
+def test_run_tool_reports_an_execution_error(monkeypatch):
+    def fail(*_args, **_kwargs):
+        raise QmTemplateError("could not run qemu-img: no such file")
+
+    monkeypatch.setattr("qm_template.prepare.run", fail)
+    with pytest.raises(QmTemplateError, match="could not run"):
         run_tool([["qemu-img", "convert"]])
 
 
 def test_run_tool_succeeds(monkeypatch):
     monkeypatch.setattr(
-        "qm_template.prepare.subprocess.run",
+        "qm_template.prepare.run",
         lambda *_args, **_kwargs: SimpleNamespace(returncode=0),
     )
     run_tool([["qemu-img", "convert"]])
-
-
-def test_run_tool_handles_missing_executable(monkeypatch):
-    def fake_run(_argv):
-        raise OSError("no such file")
-
-    monkeypatch.setattr("qm_template.prepare.subprocess.run", fake_run)
-    with pytest.raises(QmTemplateError):
-        run_tool([["qemu-img", "convert"]])

@@ -599,7 +599,7 @@ def test_prepare_runs_tools_with_staged_seed_files(
     monkeypatch.setattr(
         "qm_template.prepare.shutil.which", lambda name: f"/usr/bin/{name}"
     )
-    monkeypatch.setattr("qm_template.prepare.subprocess.run", fake_run)
+    monkeypatch.setattr("qm_template.prepare.run", fake_run)
     assert main(["prepare", "--config", str(config)]) == 0
     assert [argv[0] for argv in calls] == ["qemu-img", "genisoimage"]
     assert str(image.with_suffix(".vdi")) in calls[0]
@@ -635,7 +635,7 @@ def test_prepare_keeps_an_existing_disk_and_rebuilds_the_seed(
     monkeypatch.setattr(
         "qm_template.prepare.shutil.which", lambda name: f"/usr/bin/{name}"
     )
-    monkeypatch.setattr("qm_template.prepare.subprocess.run", fake_run)
+    monkeypatch.setattr("qm_template.prepare.run", fake_run)
     assert main(["prepare", "--config", str(config)]) == 0
     assert [argv[0] for argv in calls] == ["genisoimage"]
     assert disk.read_bytes() == b"old disk"
@@ -665,7 +665,7 @@ def test_prepare_force_reconverts_the_disk(
     monkeypatch.setattr(
         "qm_template.prepare.shutil.which", lambda name: f"/usr/bin/{name}"
     )
-    monkeypatch.setattr("qm_template.prepare.subprocess.run", fake_run)
+    monkeypatch.setattr("qm_template.prepare.run", fake_run)
     assert main(["prepare", "--force", "--config", str(config)]) == 0
     assert [argv[0] for argv in calls] == ["qemu-img", "genisoimage"]
     assert not disk.exists()

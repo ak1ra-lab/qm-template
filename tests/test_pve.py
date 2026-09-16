@@ -123,7 +123,7 @@ def test_next_vm_id_rejects_non_positive_step():
 def test_used_vm_ids_parses_qm_list(monkeypatch):
     monkeypatch.setattr("qm_template.pve.shutil.which", lambda _name: "/usr/bin/qm")
     monkeypatch.setattr(
-        "qm_template.pve.subprocess.run",
+        "qm_template.pve.run",
         lambda *_args, **_kwargs: SimpleNamespace(
             returncode=0,
             stdout="VMID NAME STATUS\n100 a running\n9000 tmpl stopped\n\n",
@@ -133,17 +133,29 @@ def test_used_vm_ids_parses_qm_list(monkeypatch):
     assert used_vm_ids() == {100, 9000}
 
 
-def test_used_vm_ids_falls_back_to_config_directory(monkeypatch, tmp_path):
+def test_used_vm_ids_merges_the_config_directory(monkeypatch, tmp_path):
     (tmp_path / "100.conf").write_text("")
     (tmp_path / "9000.conf").write_text("")
     (tmp_path / "notes.txt").write_text("")
     monkeypatch.setattr("qm_template.pve.shutil.which", lambda _name: "/usr/bin/qm")
     monkeypatch.setattr(
-        "qm_template.pve.subprocess.run",
+        "qm_template.pve.run",
         lambda *_args, **_kwargs: SimpleNamespace(returncode=1, stdout=""),
     )
     monkeypatch.setattr("qm_template.pve.PVE_VM_DIR", tmp_path)
     assert used_vm_ids() == {100, 9000}
+
+
+def test_used_vm_ids_ignores_an_execution_failure(monkeypatch, tmp_path):
+    (tmp_path / "100.conf").write_text("")
+
+    def fail(*_args, **_kwargs):
+        raise QmTemplateError("could not run qm: no such file")
+
+    monkeypatch.setattr("qm_template.pve.shutil.which", lambda _name: "/usr/bin/qm")
+    monkeypatch.setattr("qm_template.pve.run", fail)
+    monkeypatch.setattr("qm_template.pve.PVE_VM_DIR", tmp_path)
+    assert used_vm_ids() == {100}
 
 
 def test_used_vm_ids_without_qm(monkeypatch, tmp_path):
@@ -155,7 +167,7 @@ def test_used_vm_ids_without_qm(monkeypatch, tmp_path):
 def test_check_storage_accepts_known_storage(monkeypatch):
     monkeypatch.setattr("qm_template.pve.shutil.which", lambda _name: "/usr/bin/pvesm")
     monkeypatch.setattr(
-        "qm_template.pve.subprocess.run",
+        "qm_template.pve.run",
         lambda *_args, **_kwargs: SimpleNamespace(
             returncode=0,
             stdout="Name Type Status\nlocal-lvm lvm active\nlocal dir active\n",
@@ -175,9 +187,18 @@ def test_check_storage_is_skipped_without_pvesm(monkeypatch):
 def test_check_storage_is_skipped_when_pvesm_fails(monkeypatch):
     monkeypatch.setattr("qm_template.pve.shutil.which", lambda _name: "/usr/bin/pvesm")
     monkeypatch.setattr(
-        "qm_template.pve.subprocess.run",
+        "qm_template.pve.run",
         lambda *_args, **_kwargs: SimpleNamespace(returncode=1, stdout=""),
     )
+    check_storage("local-lvm")
+
+
+def test_check_storage_is_skipped_when_pvesm_cannot_run(monkeypatch):
+    def fail(*_args, **_kwargs):
+        raise QmTemplateError("could not run pvesm: no such file")
+
+    monkeypatch.setattr("qm_template.pve.shutil.which", lambda _name: "/usr/bin/pvesm")
+    monkeypatch.setattr("qm_template.pve.run", fail)
     check_storage("local-lvm")
 
 
@@ -205,17 +226,27 @@ def test_run_qm_requires_qm(monkeypatch):
 def test_run_qm_reports_failure(monkeypatch):
     monkeypatch.setattr("qm_template.pve.shutil.which", lambda _name: "/usr/bin/qm")
     monkeypatch.setattr(
-        "qm_template.pve.subprocess.run",
+        "qm_template.pve.run",
         lambda *_args, **_kwargs: SimpleNamespace(returncode=2),
     )
-    with pytest.raises(QmTemplateError):
+    with pytest.raises(QmTemplateError, match="qm create failed with exit status 2"):
+        run_qm([["qm", "create", "9000"]])
+
+
+def test_run_qm_reports_an_execution_error(monkeypatch):
+    def fail(*_args, **_kwargs):
+        raise QmTemplateError("could not run /usr/bin/qm: no such file")
+
+    monkeypatch.setattr("qm_template.pve.shutil.which", lambda _name: "/usr/bin/qm")
+    monkeypatch.setattr("qm_template.pve.run", fail)
+    with pytest.raises(QmTemplateError, match="could not run"):
         run_qm([["qm", "create", "9000"]])
 
 
 def test_run_qm_succeeds(monkeypatch):
     monkeypatch.setattr("qm_template.pve.shutil.which", lambda _name: "/usr/bin/qm")
     monkeypatch.setattr(
-        "qm_template.pve.subprocess.run",
+        "qm_template.pve.run",
         lambda *_args, **_kwargs: SimpleNamespace(returncode=0),
     )
     run_qm([["qm", "create", "9000"]])

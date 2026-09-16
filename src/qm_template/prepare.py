@@ -1,12 +1,9 @@
-import shlex
 import shutil
-import subprocess
 from collections.abc import Sequence
 from pathlib import Path
 
 from qm_template.errors import QmTemplateError
-from qm_template.log import log
-from qm_template.shell import CommandGroups, flatten
+from qm_template.shell import CommandGroups, flatten, run
 
 QEMU_IMG = "qemu-img"
 GENISOIMAGE = "genisoimage"
@@ -45,10 +42,6 @@ def seed_iso_command(destination: Path, sources: Sequence[Path]) -> CommandGroup
 
 def run_tool(command: CommandGroups) -> None:
     argv = flatten(command)
-    log.debug("Running: %s", shlex.join(argv))
-    try:
-        result = subprocess.run(argv)
-    except OSError as exc:
-        raise QmTemplateError(f"could not run {argv[0]}: {exc}") from exc
+    result = run(argv)
     if result.returncode != 0:
         raise QmTemplateError(f"{argv[0]} failed with exit status {result.returncode}")

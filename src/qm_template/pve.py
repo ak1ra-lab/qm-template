@@ -1,16 +1,15 @@
 import os
 import re
-import shlex
 import shutil
-import subprocess
 import sys
 from collections.abc import Collection, Sequence
 from pathlib import Path
+from typing import Literal
 
 from qm_template.config import CloudInitSettings, CreateSettings
 from qm_template.errors import QmTemplateError, UserCancelled
 from qm_template.log import log
-from qm_template.shell import CommandGroups, flatten
+from qm_template.shell import CommandGroups, flatten, run
 
 PVE_VM_DIR = Path("/etc/pve/qemu-server")
 MIN_VM_ID = 100
@@ -42,15 +41,19 @@ def _config_vm_ids() -> set[int]:
 
 
 def used_vm_ids() -> set[int]:
-    """Collect VM IDs from `qm list`, falling back to the config directory."""
+    """Collect VM IDs from `qm list`, combined with the config directory."""
     ids: set[int] = set()
     qm = shutil.which("qm")
     if qm is not None:
-        result = subprocess.run([qm, "list"], capture_output=True, text=True)
-        if result.returncode == 0:
-            ids.update(_parse_vm_list(result.stdout))
+        try:
+            result = run([qm, "list"], capture=True)
+        except QmTemplateError as exc:
+            log.debug("%s", exc)
         else:
-            log.debug("qm list failed with exit status %d", result.returncode)
+            if result.returncode == 0:
+                ids.update(_parse_vm_list(result.stdout))
+            else:
+                log.debug("qm list failed with exit status %d", result.returncode)
     return ids | _config_vm_ids()
 
 
@@ -86,12 +89,16 @@ def check_storage(storage: str) -> None:
     if pvesm is None:
         log.warning("pvesm not found, skipping storage validation")
         return
-    result = subprocess.run([pvesm, "status"], capture_output=True, text=True)
-    if result.returncode != 0:
+    status = None
+    try:
+        status = run([pvesm, "status"], capture=True)
+    except QmTemplateError as exc:
+        log.debug("%s", exc)
+    if status is None or status.returncode != 0:
         log.warning("pvesm status failed, skipping storage validation")
         return
     names = [
-        fields[0] for line in result.stdout.splitlines()[1:] if (fields := line.split())
+        fields[0] for line in status.stdout.splitlines()[1:] if (fields := line.split())
     ]
     if storage not in names:
         raise QmTemplateError(
@@ -99,7 +106,10 @@ def check_storage(storage: str) -> None:
         )
 
 
-def detect_firmware(image: Path) -> str:
+ResolvedFirmware = Literal["bios", "uefi"]
+
+
+def detect_firmware(image: Path) -> ResolvedFirmware:
     """Guess the firmware an image needs from its filename."""
     return "uefi" if "uefi" in image.name.lower() else "bios"
 
@@ -112,7 +122,7 @@ def build_qm_create(
     settings: CreateSettings,
     cloudinit: CloudInitSettings,
     *,
-    firmware: str = "bios",
+    firmware: ResolvedFirmware = "bios",
 ) -> CommandGroups:
     storage = settings.storage
     firmware_args: CommandGroups = []
@@ -150,11 +160,12 @@ def build_qm_create(
 
 def run_qm(command: CommandGroups) -> None:
     argv = flatten(command)
-    if shutil.which("qm") is None:
+    qm = shutil.which("qm")
+    if qm is None:
         raise QmTemplateError("qm command not found; run this on a Proxmox VE node")
     if os.geteuid() != 0:
         log.warning("qm usually requires root privileges")
-    log.debug("Running: %s", shlex.join(argv))
-    result = subprocess.run(argv)
+    label = " ".join(argv[:2])
+    result = run([qm, *argv[1:]])
     if result.returncode != 0:
-        raise QmTemplateError(f"qm create failed with exit status {result.returncode}")
+        raise QmTemplateError(f"{label} failed with exit status {result.returncode}")
