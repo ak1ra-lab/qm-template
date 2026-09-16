@@ -5,7 +5,7 @@
 [![Docs](https://img.shields.io/badge/docs-online-0a7ea4)](https://ak1ra-lab.github.io/qm-template/)
 
 A Python CLI that downloads cloud images, creates Proxmox VE VM templates and
-prepares VirtualBox artifacts, with Cloud-Init support.
+prepares local VM artifacts, with Cloud-Init support.
 
 ## Features
 
@@ -13,6 +13,11 @@ prepares VirtualBox artifacts, with Cloud-Init support.
   CentOS Stream, Alpine, openSUSE and Arch Linux
 - **Checksum verification**: SHA-256/SHA-512 fetched from each distro's official
   checksum files and saved next to the image (`<image>.sha256`/`.sha512`)
+- **GPG signature verification**: signed checksums (Ubuntu, Fedora, Rocky,
+  AlmaLinux, openSUSE) and signed images (Alpine, Arch Linux) are verified with
+  `gpg` against keys fetched from the distro's canonical source, with pinned
+  fingerprints where upstream publishes a stable key; disable it with
+  `download.verify_signature = false`
 - **Pinned builds**: dated builds are selected where the upstream offers them,
   and images mirror the upstream directory layout
 - **Resumable downloads**: uses the first available of `axel`, `aria2c`, `wget`
@@ -23,15 +28,16 @@ prepares VirtualBox artifacts, with Cloud-Init support.
   transient 5xx/network errors with exponential backoff
 - **Complete `qm create` command**: the whole template is assembled into a
   single `qm create ... --template 1` invocation instead of a chain of
-  `qm set` calls
+  `qm set` calls, including optional tags, pool, onboot and description
 - **Automatic VM IDs**: the next free ID is picked from `qm list` (or the
   Proxmox config directory), starting at `vmid.start` (default 9000)
 - **Configurable CPU type**: `create.cpu`/`--cpu` overrides the default
   `cputype=host` when migration across CPU generations matters
 - **Local VM artifacts**: `prepare` converts an image to VDI, VMDK, QCOW2, raw
   or VHDX with `qemu-img` and builds a NoCloud seed ISO (user-data, meta-data
-  and a DHCP network-config) with `genisoimage`, both written next to the
-  source image
+  and a DHCP network-config) with the first available of `genisoimage`,
+  `xorriso` or `mkisofs`, both written next to the source image; SSH keys are
+  optional, so the seed can rely on password login alone
 - **Validated TOML configuration**: settings and per-distro overrides are
   validated with `pydantic-settings` (unknown keys are rejected with a hint),
   optional `[distro.<name>]` overrides, and `QM_TEMPLATE_*` environment
@@ -42,10 +48,12 @@ prepares VirtualBox artifacts, with Cloud-Init support.
   parameter with its default and accepted values; `qm-template distros debian`
   describes a single distro
 - **Mirror-friendly**: point any distro at an upstream or mirror through
-  `[distro.<name>] base_url`, including the checksum file
+  `[distro.<name>] base_url`, including the checksum file and its signature
 - **Configuration template**: `qm-template config` prints a commented
   starting-point configuration and `--full` adds the per-distro default tables;
   the file is never written automatically
+- **Verbose logging**: `-v` adds debug messages and `-vv` also prefixes log
+  levels and timestamps
 
 ## Requirements
 
@@ -54,7 +62,10 @@ prepares VirtualBox artifacts, with Cloud-Init support.
 - A Proxmox VE host, normally running as root
 - Proxmox VE (`qm`, `pvesm`) for the `create` command
 - One of `axel`, `aria2c`, `wget` or `curl` for the `download` command
-- `qemu-img` and `genisoimage` for the `prepare` command
+- `gpg` for signature verification (all distros except Debian and CentOS
+  Stream); set `download.verify_signature = false` to skip it
+- `qemu-img` and one of `genisoimage`, `xorriso` or `mkisofs` for the
+  `prepare` command
 
 ## Installation
 
@@ -92,13 +103,18 @@ overrides it, mirroring the upstream layout:
 `download.preferred` orders the downloaders and `download.connections` sets the
 number of parallel connections for `axel` and `aria2c`. Downloads show progress
 by default; set `download.quiet = true` or pass `-q`/`--quiet` to hide it.
-`cloudinit.user`/`password` configure the Cloud-Init user, and
-`cloudinit.sshkeys`/`sshkeys_files` list inline SSH public keys and key files
-whose contents are merged and deduplicated by fingerprint; at least one key is
-required. `create.cpu` sets the CPU type passed as `cputype=...` (default
-`host`), and `vmid.start`/`vmid.step` drive automatic VM ID selection (default
-`9000` and `1`). Optional `[distro.<name>]` overrides are not written to the
-generated file:
+Signed checksums and images are verified with `gpg` unless
+`download.verify_signature = false`. `cloudinit.user`/`password` configure the
+Cloud-Init user, and `cloudinit.sshkeys`/`sshkeys_files` list inline SSH public
+keys and key files whose contents are merged and deduplicated by fingerprint;
+`create` requires at least one key, while `prepare` can fall back to password
+login. `create.cpu` sets the CPU type passed as `cputype=...` (default `host`),
+`create.tags`/`pool`/`onboot`/`description` add optional Proxmox metadata, and
+`vmid.start`/`vmid.step` drive automatic VM ID selection (default `9000` and
+`1`). `prepare.preferred` orders the ISO builders and defaults to
+`genisoimage`, `xorriso`, `mkisofs`. Add `-v` (debug messages) or `-vv` (also
+log levels and timestamps) to any command for troubleshooting. Optional
+`[distro.<name>]` overrides are not written to the generated file:
 
 ```toml
 [distro.debian]
@@ -108,9 +124,12 @@ base_url = "https://mirror.example.org/debian-cloud"
 ```
 
 `base_url` points a distro at an upstream or mirror that mirrors the expected
-directory layout; the checksum file is fetched from the same base. Since the
-upstream sites generally do not GPG-sign checksum files, a mirror serves both
-the image and its checksum; use a trusted mirror if authenticity matters.
+directory layout; the checksum file and its signature are fetched from the same
+base. Upstream signatures are verified against keys fetched from the distro's
+canonical source (never from the mirror), and the expected fingerprints are
+pinned where upstream publishes stable keys. Debian and CentOS Stream do not
+sign their cloud image metadata, so a mirror serves both the image and its
+checksum there; use a trusted mirror if authenticity matters.
 
 Print a starting-point configuration to stdout and redirect it; the file is
 never written automatically:
@@ -165,9 +184,12 @@ Interrupted downloads are resumed on the next run; partial files are stored as
 downloader and never switches to another one; a completed download that fails
 checksum verification is downloaded once more from scratch before the command
 fails. Checksum files and directory listings are retried with exponential
-backoff on transient 5xx and network errors. The checksum fetched from the
-upstream source is saved next to the image as `<image>.sha256` or
-`<image>.sha512`, depending on the upstream algorithm.
+backoff on transient 5xx and network errors. Where upstream provides a signed
+checksum file (or a signed image, for Alpine and Arch Linux) the signature is
+verified with `gpg` before it is trusted; the signing key is fetched from the
+distro's canonical source with pinned fingerprints, so a mirror cannot forge
+it. The checksum fetched from the upstream source is saved next to the image as
+`<image>.sha256` or `<image>.sha512`, depending on the upstream algorithm.
 
 ### Create a VM template
 
@@ -184,12 +206,15 @@ qm-template create --vm-id 9000 --vm-name debian-13-template
 # use a migration-friendly CPU type
 qm-template create --cpu x86-64-v2-AES
 
+# attach Proxmox metadata
+qm-template create --tags template,cloud --pool templates --onboot
+
 # inspect the assembled command without running it
 qm-template create --dry-run --vm-id 9000
 ```
 
 When `--vm-id` is omitted, `qm-template` collects the IDs in use from
-`qm list` (falling back to `/etc/pve/qemu-server/*.conf`) and picks the first
+`qm list` combined with `/etc/pve/qemu-server/*.conf` and picks the first
 free ID at or after `vmid.start` (default `9000`), advancing by `vmid.step`
 (default `1`); the 9000+ range keeps templates away from regular VMs. If
 `qm create` fails, an existing but incomplete VM config is reported with the
@@ -219,7 +244,7 @@ qm create 9000 \
     --ciupgrade 0 \
     --ciuser debian \
     --cipassword debian \
-    --sshkeys ~/.ssh/id_ed25519.pub \
+    --sshkeys /tmp/qm-template-sshkeys-XXXX.pub \
     --template 1
 ```
 
@@ -228,10 +253,11 @@ qm create 9000 \
 Most hypervisors cannot boot `.qcow2` directly, so guest disks have to be
 converted. The hypervisor-agnostic `prepare` command selects a downloaded
 image, converts it to a guest disk with `qemu-img` and packs a NoCloud seed
-into a `CIDATA`-labelled ISO with `genisoimage`: `user-data`/`meta-data` built
-from the `[cloudinit]` settings plus a DHCP `network-config` (needed because
-Debian cloud images do not fall back to a generated network configuration).
-Both artifacts are written next to the source image and only differ in suffix:
+into a `CIDATA`-labelled ISO with the first available of `genisoimage`,
+`xorriso` or `mkisofs`: `user-data`/`meta-data` built from the `[cloudinit]`
+settings plus a DHCP `network-config` (needed because Debian cloud images do
+not fall back to a generated network configuration). Both artifacts are written
+next to the source image and only differ in suffix:
 
 ```shell
 # debian-13.qcow2 -> debian-13.vdi + debian-13.iso
@@ -252,9 +278,11 @@ extension follows the format (`--format vdi` writes `<image>.vdi`). Choosing
 `qcow2` for a `.qcow2` source is rejected because it would overwrite the source
 image. For VirtualBox, attach the `.vdi` as a SATA hard disk and the seed ISO
 as a CD-ROM. Use the `generic`/`genericcloud` image variants: Debian's
-`nocloud` variant does not run Cloud-Init. An existing guest disk is kept and
-only the seed ISO is rebuilt, since converting is expensive and the seed
-derives from the `[cloudinit]` settings; pass `--force`/`-f` to convert again.
+`nocloud` variant does not run Cloud-Init. Without configured SSH keys the seed
+only enables password login (with a warning); `create`, by contrast, still
+requires keys. An existing guest disk is kept and only the seed ISO is rebuilt,
+since converting is expensive and the seed derives from the `[cloudinit]`
+settings; pass `--force`/`-f` to convert again.
 
 ## Supported distros
 
@@ -272,7 +300,7 @@ build; using it with any other distro is an error. Defaults:
 | `centos`    | `10`            | `GenericCloud`  | CentOS Stream                     |
 | `alpine`    | `3.24`          | `generic`       | BIOS firmware, Cloud-Init enabled |
 | `opensuse`  | `tumbleweed`    | `Minimal`       | `--release 15.6` for Leap         |
-| `archlinux` | `latest`        | `cloudimg`      | variant `basic` also supported    |
+| `archlinux` | `latest`        | `cloudimg`      | only the cloudimg variant         |
 
 ## Development
 
@@ -303,7 +331,8 @@ qm-template/
 │   ├── log.py          # logging setup
 │   ├── pve.py          # qm/pvesm integration and VM ID selection
 │   ├── shell.py        # grouped command rendering and execution
-│   ├── prepare.py      # qemu-img / genisoimage wrappers
+│   ├── signature.py    # gpg signature verification of checksums and images
+│   ├── prepare.py      # qemu-img / genisoimage / xorriso / mkisofs wrappers
 │   └── distros/        # one module per distro family
 └── tests/
 ```

@@ -1,7 +1,7 @@
 # qm-template
 
 一个 Python CLI，用于下载 cloud image、创建支持 Cloud-Init 的 Proxmox VE 虚拟机模板，
-并准备 VirtualBox 产物。
+并准备本地虚拟机产物。
 
 ## 特性
 
@@ -9,18 +9,22 @@
   CentOS Stream、Alpine、openSUSE 和 Arch Linux。
 - **校验和验证**：从各发行版官方校验和文件获取 SHA-256/SHA-512，并与镜像一起保存为
   `<image>.sha256`/`.sha512`。
+- **GPG 签名校验**：对已签名的校验和或镜像进行验证，公钥来自发行版官方来源并校验
+  固定指纹。
 - **断点续传**：使用首个可用的 `axel`、`aria2c`、`wget` 或 `curl`，默认显示进度
   （可用 `--quiet` 关闭），并支持失败重试。
 - **单条 `qm create ... --template 1` 命令**，而不是一串 `qm set` 调用；自动选择
-  下一个空闲 VM ID，并可配置 CPU 类型。
+  下一个空闲 VM ID，可配置 CPU 类型，并支持可选的 tags、pool、onboot 和 description。
 - **本地虚拟机产物**：`qm-template prepare` 通过 `qemu-img` 转换磁盘格式
-  （VDI、VMDK、QCOW2、raw 或 VHDX）并生成 NoCloud seed ISO，两者与源镜像同目录存放。
+  （VDI、VMDK、QCOW2、raw 或 VHDX），并用 `genisoimage`/`xorriso`/`mkisofs` 生成
+  NoCloud seed ISO，两者与源镜像同目录存放。
 - **配置校验**：设置及可选的 `[distro.<name>]` 覆盖值由 `pydantic-settings` 校验，
   可用 `QM_TEMPLATE_*` 环境变量覆盖配置文件，`qm-template config` 会把起始配置
   打印到 stdout。
 - **镜像站友好**：通过 `[distro.<name>] base_url` 把任意发行版指向上游或镜像站，
-  校验和文件也来自同一 base。
+  已签名的校验和文件也来自同一 base。
 - **Shell 补全**：由 `argcomplete` 提供，包括每个发行版支持的参数值。
+- **调试日志**：任何命令都可以用 `-v`/`-vv` 提高日志详细程度。
 
 ## 快速开始
 

@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Verify upstream GPG signatures when downloading: Ubuntu, Fedora, Rocky Linux,
+  AlmaLinux and openSUSE provide signed checksum files (Fedora clearsigned,
+  the rest detached), while Alpine and Arch Linux sign the image itself.
+  Signing keys are fetched from each distro's canonical source (never from the
+  configured mirror) and pinned fingerprints are checked where upstream
+  publishes a stable key; Debian and CentOS Stream provide no signatures and
+  are skipped. Set `download.verify_signature = false` to skip verification,
+  for example when gnupg is not installed.
+- Add `-v`/`--verbose` to every command: `-v` enables debug messages and
+  `-vv` also prefixes the log level and timestamp.
+- Add `create.tags`, `create.pool`, `create.onboot` and `create.description`
+  with the `--tags`, `--pool`, `--onboot`/`--no-onboot` and `--description`
+  options to attach Proxmox metadata to the created template.
+- Add `prepare.preferred` to choose the seed ISO builder; `prepare` now uses
+  the first available of `genisoimage`, `xorriso` or `mkisofs` instead of
+  requiring `genisoimage`.
+- Allow `prepare` to run without SSH keys: the seed then only enables password
+  login and a warning is logged. `create` still requires at least one key.
+
 ## [0.3.2] - 2026-09-16
 
 ### Fixed
