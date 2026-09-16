@@ -486,6 +486,8 @@ def test_download_option_flags_do_not_shadow_globals() -> None:
 
 
 def test_download_parser_registers_schema_options() -> None:
+    args = build_parser().parse_args(["download", "alpine", "--firmware", "uefi"])
+    assert args.firmware == "uefi"
     args = build_parser().parse_args(["download", "freebsd", "--fs", "zfs"])
     assert args.fs == "zfs"
     assert not hasattr(args, "base_url")

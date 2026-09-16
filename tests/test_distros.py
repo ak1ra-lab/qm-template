@@ -522,3 +522,20 @@ def test_amazonlinux_accepts_an_explicit_version(monkeypatch):
         "https://cdn.amazonlinux.com/al2023/os-images/2023.12.20260914.0/kvm/"
     ]
     assert image.release == "2023.12.20260914.0"
+
+
+def test_alpine_firmware_can_be_selected_explicitly(monkeypatch):
+    listing = [
+        "generic_alpine-3.24.1-x86_64-bios-cloudinit-r0.qcow2",
+        "generic_alpine-3.24.1-x86_64-uefi-cloudinit-r0.qcow2",
+    ]
+    monkeypatch.setattr("qm_template.distros.base.list_directory", lambda _url: listing)
+    distro = Alpine()
+    image = distro.resolve(distro.merge({}, {"firmware": "uefi"}))
+    assert image.filename == "generic_alpine-3.24.1-x86_64-uefi-cloudinit-r0.qcow2"
+
+
+def test_alpine_rejects_firmware_the_arch_does_not_have():
+    distro = Alpine()
+    with pytest.raises(QmTemplateError, match="only come with uefi firmware"):
+        distro.resolve(distro.merge({}, {"arch": "aarch64", "firmware": "bios"}))
