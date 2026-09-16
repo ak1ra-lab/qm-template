@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add FreeBSD (`freebsd`) VM images: `variant` selects the `cloudinit` or
+  `base` image, `fs` selects `ufs` or `zfs`, and `arch` supports `amd64` and
+  `aarch64`. FreeBSD ships `.xz` archives; the archive is verified against the
+  upstream `CHECKSUM.SHA256`, extracted to `.qcow2` and removed, with a local
+  checksum sidecar so a later run detects the up-to-date image.
+- Add Amazon Linux 2023 (`amazonlinux`): `release = "latest"` resolves the
+  current version directory and pins it, `arch` supports `x86_64` and
+  `aarch64`, and the checksum comes from the version's `SHA256SUMS`. Amazon's
+  RSA-signed `SHA256SUMS` is not verified yet, only the HTTPS checksum.
 - Verify upstream GPG signatures when downloading: Ubuntu, Fedora, Rocky Linux,
   AlmaLinux and openSUSE provide signed checksum files (Fedora clearsigned,
   the rest detached), while Alpine and Arch Linux sign the image itself.

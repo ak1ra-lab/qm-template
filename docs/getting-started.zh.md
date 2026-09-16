@@ -7,7 +7,8 @@
 - Proxmox VE 主机，通常以 root 身份运行
 - `create` 命令需要 Proxmox VE（`qm`、`pvesm`）
 - `download` 命令需要 `axel`、`aria2c`、`wget` 或 `curl` 之一
-- 签名校验需要 `gpg`；除 Debian 和 CentOS Stream 外的发行版都提供已签名元数据
+- 签名校验需要 `gpg`；Ubuntu、Fedora、Rocky、AlmaLinux、openSUSE、Alpine 和
+  Arch Linux 提供已签名元数据
 - `prepare` 命令需要 `qemu-img` 以及 `genisoimage`、`xorriso`、`mkisofs` 之一
 
 ## 安装
@@ -72,11 +73,12 @@ base_url = "https://mirror.example.org/debian-cloud"
 ```
 
 `base_url` 用于把某个发行版指向上游或镜像站，镜像站必须保持上游的目录结构；校验和
-文件及其签名也从同一个 base 获取。除 Debian 和 CentOS Stream 外，所有支持的发行版
-都对元数据签名，校验和在被信任之前会先用 `gpg` 验证；签名公钥只从发行版的官方来源
-获取（绝不从镜像站获取），上游提供稳定公钥时会校验固定的指纹。Debian 和 CentOS
-Stream 不对 cloud image 元数据签名，其镜像站同时提供镜像和校验和：对真实性有要求时
-请使用可信镜像，或用带外方式自行校验。
+文件及其签名也从同一个 base 获取。Ubuntu、Fedora、Rocky、AlmaLinux、openSUSE、
+Alpine 和 Arch Linux 对元数据签名，校验和在被信任之前会先用 `gpg` 验证；签名公钥
+只从发行版的官方来源获取（绝不从镜像站获取），上游提供稳定公钥时会校验固定的指纹。
+Debian、CentOS Stream 和 FreeBSD 不对 cloud image 元数据签名，Amazon Linux 的
+RSA 签名也尚未校验；对这些发行版，镜像站同时提供镜像和校验和，对真实性有要求时请
+使用可信镜像，或用带外方式自行校验。
 
 `qm-template distros` 会列出每个参数及其默认值和可选值，`qm-template distros
 debian` 查看单个发行版。
@@ -132,15 +134,18 @@ qm-template download -q alpine
 
 `--dry-run` 会解析镜像并 pretty print 首个可用下载器的命令，每个参数组一行，不执行下载。
 上游提供日期快照的发行版（Debian、Ubuntu server、Arch Linux、openSUSE
-Tumbleweed）会固定到最新构建，新构建会与旧构建并存而不是覆盖。`--tag` 用于选择
-具体构建，只有支持它的发行版才会接受（目前是 Debian 和 Fedora，`qm-template
-distros` 会标注）。中断的下载会在下次运行时
+Tumbleweed）会固定到最新构建，Amazon Linux 2023 会把 `/latest/` 解析为当前版本并
+固定，新构建会与旧构建并存而不是覆盖。FreeBSD 镜像以 `.xz` 归档分发：归档会先校验，
+再解压为 `.qcow2` 并删除归档，同时保存本地校验和 sidecar，后续运行可直接判定为最新。
+`--tag` 用于选择具体构建，只有支持它的发行版才会接受（目前是 Debian 和 Fedora，
+`qm-template distros` 会标注）。中断的下载会在下次运行时
 续传，未完成的文件保存为 `<image>.part`。下载失败会使用同一个下载器从零重试，不会切换
 到其他下载器；下载完成但校验和不匹配时会再从头下载一次，仍失败才报错。校验和文件与目录
 列表在遇到瞬时 5xx 或网络错误时会按指数退避重试。上游提供签名元数据时（Ubuntu、
 Fedora、Rocky、AlmaLinux、openSUSE 提供已签名的校验和文件，Alpine 和 Arch Linux
 直接签名镜像），会在信任下载内容之前用 `gpg` 验证签名；公钥从发行版官方来源获取，
-上游提供稳定公钥时还会校验固定指纹。获取到的校验和会与镜像一起保存为
+上游提供稳定公钥时还会校验固定指纹。Debian、CentOS Stream 和 FreeBSD 没有 cloud
+image 签名，Amazon Linux 的 RSA 签名也尚未校验。获取到的校验和会与镜像一起保存为
 `<image>.sha256` 或 `<image>.sha512`，取决于上游使用的算法。
 
 ## 创建虚拟机模板

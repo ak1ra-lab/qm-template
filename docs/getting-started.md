@@ -7,8 +7,8 @@
 - A Proxmox VE host, normally running as root
 - Proxmox VE (`qm`, `pvesm`) for the `create` command
 - One of `axel`, `aria2c`, `wget` or `curl` for the `download` command
-- `gpg` for signature verification; all distros except Debian and CentOS
-  Stream ship signed metadata
+- `gpg` for signature verification; Ubuntu, Fedora, Rocky, AlmaLinux, openSUSE,
+  Alpine and Arch Linux ship signed metadata
 - `qemu-img` and one of `genisoimage`, `xorriso` or `mkisofs` for the
   `prepare` command
 
@@ -84,13 +84,14 @@ base_url = "https://mirror.example.org/debian-cloud"
 
 `base_url` points a distro at an upstream or mirror that mirrors the expected
 directory layout; the checksum file and its signature are fetched from the same
-base. Where upstream signs its metadata (every supported distro except Debian
-and CentOS Stream) the signature is verified with `gpg` before the checksum is
-trusted, and the signing keys are fetched from the distro's canonical source -
-never from the mirror - with pinned fingerprints where upstream publishes
-stable keys. Debian and CentOS Stream do not sign their cloud image metadata,
-so a mirror serves both the image and its checksum there: use a trusted mirror,
-or verify the checksum out of band, when authenticity matters.
+base. Where upstream signs its metadata (Ubuntu, Fedora, Rocky, AlmaLinux,
+openSUSE, Alpine and Arch Linux) the signature is verified with `gpg` before
+the checksum is trusted, and the signing keys are fetched from the distro's
+canonical source - never from the mirror - with pinned fingerprints where
+upstream publishes stable keys. Debian, CentOS Stream and FreeBSD do not sign
+their cloud image metadata, and Amazon Linux's RSA signature is not verified
+yet; for those a mirror serves both the image and its checksum, so use a
+trusted mirror, or verify the checksum out of band, when authenticity matters.
 
 `qm-template distros` shows every parameter with its default and accepted
 values, and `qm-template distros debian` describes a single distro.
@@ -151,8 +152,12 @@ qm-template download -q alpine
 `--dry-run` resolves the image and pretty prints the command of the first
 available downloader, one argument group per line, without downloading anything.
 Builds are pinned where the upstream provides dated snapshots (Debian, Ubuntu
-server, Arch Linux, openSUSE Tumbleweed), so a newer build is downloaded
-alongside the old one instead of overwriting it. `--tag` selects a specific
+server, Arch Linux, openSUSE Tumbleweed), and Amazon Linux 2023 resolves
+`/latest/` to the current version and pins it, so a newer build is downloaded
+alongside the old one instead of overwriting it. FreeBSD images are distributed
+as `.xz` archives: the archive is verified, extracted to `.qcow2` and removed,
+and a local checksum sidecar lets later runs detect the up-to-date image. `--tag`
+selects a specific
 build and is only accepted by distros that support it (Debian and Fedora;
 `qm-template distros` marks it). Interrupted downloads are
 resumed on the next run; partial files are stored as `<image>.part`. A failed
@@ -164,9 +169,10 @@ errors. Where upstream provides signed metadata - a signed checksum file for
 Ubuntu, Fedora, Rocky, AlmaLinux and openSUSE, a signed image for Alpine and
 Arch Linux - the signature is verified with `gpg` before the download is
 trusted; keys are fetched from the distro's canonical source and pinned
-fingerprints are checked where upstream publishes stable keys. The fetched
-checksum is saved next to the image as `<image>.sha256` or `<image>.sha512`,
-depending on the upstream algorithm.
+fingerprints are checked where upstream publishes stable keys. Debian, CentOS
+Stream and FreeBSD ship no cloud image signatures, and Amazon Linux's RSA
+signature is not verified yet. The fetched checksum is saved next to the image
+as `<image>.sha256` or `<image>.sha512`, depending on the upstream algorithm.
 
 ## Create a VM template
 

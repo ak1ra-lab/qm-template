@@ -6,7 +6,7 @@ prepares local VM artifacts, with Cloud-Init support.
 ## Features
 
 - **Multi-distro downloads**: Debian, Ubuntu, Rocky Linux, AlmaLinux, Fedora,
-  CentOS Stream, Alpine, openSUSE and Arch Linux.
+  CentOS Stream, Alpine, openSUSE, Arch Linux, FreeBSD and Amazon Linux 2023.
 - **Checksum verification** against each distro's official checksum files,
   saved next to the image (`<image>.sha256`/`.sha512`).
 - **GPG signature verification** of signed checksums and images with keys from

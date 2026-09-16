@@ -10,7 +10,7 @@ prepares local VM artifacts, with Cloud-Init support.
 ## Features
 
 - **Multi-distro downloads**: Debian, Ubuntu, Rocky Linux, AlmaLinux, Fedora,
-  CentOS Stream, Alpine, openSUSE and Arch Linux
+  CentOS Stream, Alpine, openSUSE, Arch Linux, FreeBSD and Amazon Linux 2023
 - **Checksum verification**: SHA-256/SHA-512 fetched from each distro's official
   checksum files and saved next to the image (`<image>.sha256`/`.sha512`)
 - **GPG signature verification**: signed checksums (Ubuntu, Fedora, Rocky,
@@ -18,6 +18,8 @@ prepares local VM artifacts, with Cloud-Init support.
   `gpg` against keys fetched from the distro's canonical source, with pinned
   fingerprints where upstream publishes a stable key; disable it with
   `download.verify_signature = false`
+- **Compressed images**: FreeBSD ships `.xz` archives; they are checked against
+  the upstream SHA-256 sums and extracted to `.qcow2` after download
 - **Pinned builds**: dated builds are selected where the upstream offers them,
   and images mirror the upstream directory layout
 - **Resumable downloads**: uses the first available of `axel`, `aria2c`, `wget`
@@ -62,8 +64,9 @@ prepares local VM artifacts, with Cloud-Init support.
 - A Proxmox VE host, normally running as root
 - Proxmox VE (`qm`, `pvesm`) for the `create` command
 - One of `axel`, `aria2c`, `wget` or `curl` for the `download` command
-- `gpg` for signature verification (all distros except Debian and CentOS
-  Stream); set `download.verify_signature = false` to skip it
+- `gpg` for signature verification (Ubuntu, Fedora, Rocky, AlmaLinux,
+  openSUSE, Alpine and Arch Linux); set `download.verify_signature = false` to
+  skip it
 - `qemu-img` and one of `genisoimage`, `xorriso` or `mkisofs` for the
   `prepare` command
 
@@ -127,9 +130,11 @@ base_url = "https://mirror.example.org/debian-cloud"
 directory layout; the checksum file and its signature are fetched from the same
 base. Upstream signatures are verified against keys fetched from the distro's
 canonical source (never from the mirror), and the expected fingerprints are
-pinned where upstream publishes stable keys. Debian and CentOS Stream do not
-sign their cloud image metadata, so a mirror serves both the image and its
-checksum there; use a trusted mirror if authenticity matters.
+pinned where upstream publishes stable keys. Debian, CentOS Stream and FreeBSD
+do not sign their cloud image metadata, and Amazon Linux signs its checksums
+with RSA, which `qm-template` does not verify yet; for those a mirror serves
+both the image and its checksum, so use a trusted mirror if authenticity
+matters.
 
 Print a starting-point configuration to stdout and redirect it; the file is
 never written automatically:
@@ -177,8 +182,13 @@ qm-template config > config.toml
 `--dry-run` resolves the image and pretty prints the command of the first
 available downloader, one argument group per line, without downloading anything.
 Builds are pinned where the upstream provides dated snapshots (Debian, Ubuntu
-server, Arch Linux, openSUSE Tumbleweed): the newest build is selected, and a
+server, Arch Linux, openSUSE Tumbleweed) and Amazon Linux 2023 resolves and
+pins its current version: the newest build is selected, and a
 newer build is downloaded alongside the old one instead of overwriting it.
+FreeBSD images are distributed as `.xz` archives: the archive is verified
+against the upstream SHA-256 sums, extracted to `.qcow2` and removed, with a
+local checksum sidecar so later runs detect an up-to-date image without
+downloading it again.
 Interrupted downloads are resumed on the next run; partial files are stored as
 `<image>.part`. A failed download is retried from scratch with the same
 downloader and never switches to another one; a completed download that fails
@@ -301,6 +311,8 @@ build; using it with any other distro is an error. Defaults:
 | `alpine`    | `3.24`          | `generic`       | BIOS firmware, Cloud-Init enabled |
 | `opensuse`  | `tumbleweed`    | `Minimal`       | `--release 15.6` for Leap         |
 | `archlinux` | `latest`        | `cloudimg`      | only the cloudimg variant         |
+| `freebsd`   | `15.1`          | `cloudinit`     | `.xz` archive; `fs = ufs`/`zfs`   |
+| `amazonlinux` | `latest`      | -               | AL2023; pins the resolved version |
 
 ## Development
 

@@ -6,7 +6,7 @@
 ## 特性
 
 - **多发行版下载**：Debian、Ubuntu、Rocky Linux、AlmaLinux、Fedora、
-  CentOS Stream、Alpine、openSUSE 和 Arch Linux。
+  CentOS Stream、Alpine、openSUSE、Arch Linux、FreeBSD 和 Amazon Linux 2023。
 - **校验和验证**：从各发行版官方校验和文件获取 SHA-256/SHA-512，并与镜像一起保存为
   `<image>.sha256`/`.sha512`。
 - **GPG 签名校验**：对已签名的校验和或镜像进行验证，公钥来自发行版官方来源并校验
