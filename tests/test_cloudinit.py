@@ -87,9 +87,11 @@ def test_user_data_escapes_special_characters():
     assert 'password: "quote\\" back\\\\slash\\nnewline"' in document
 
 
-def test_user_data_requires_keys():
-    with pytest.raises(QmTemplateError):
-        user_data(CloudInitSettings(), "vm")
+def test_user_data_can_omit_ssh_keys(caplog):
+    document = user_data(CloudInitSettings(), "vm")
+    assert "ssh_authorized_keys" not in document
+    assert "ssh_pwauth: true" in document
+    assert "No SSH keys configured" in caplog.text
 
 
 def test_meta_data_sets_instance_id_and_hostname():

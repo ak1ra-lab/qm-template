@@ -72,9 +72,7 @@ def user_data(settings: CloudInitSettings, vm_name: str) -> str:
     """Render a NoCloud user-data document configuring the cloud user."""
     keys = collect_ssh_keys(settings)
     if not keys:
-        raise QmTemplateError(
-            "no SSH keys configured; set cloudinit.sshkeys or cloudinit.sshkeys_files"
-        )
+        log.warning("No SSH keys configured; the guest will only allow password login")
     lines = [
         "#cloud-config",
         f"hostname: {_yaml_string(vm_name)}",
@@ -87,10 +85,11 @@ def user_data(settings: CloudInitSettings, vm_name: str) -> str:
         [
             "    lock_passwd: false",
             "    sudo: ALL=(ALL) NOPASSWD:ALL",
-            "    ssh_authorized_keys:",
         ]
     )
-    lines.extend(f"      - {_yaml_string(key)}" for key in keys)
+    if keys:
+        lines.append("    ssh_authorized_keys:")
+        lines.extend(f"      - {_yaml_string(key)}" for key in keys)
     lines.extend(
         [
             "chpasswd:",

@@ -69,7 +69,8 @@ shell = "/bin/bash"
 
 # SSH public keys injected via Cloud-Init. Inline keys in sshkeys and the
 # contents of every sshkeys_files entry are merged and deduplicated by SSH key
-# fingerprint; at least one key is required. Each inline entry must look like
+# fingerprint; `create` requires at least one key, while `prepare` falls back
+# to password login when none is configured. Each inline entry must look like
 # an SSH public key. No key file is read unless configured here.
 sshkeys = [
     # "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... user@example.com",

@@ -626,15 +626,30 @@ def test_prepare_rejects_a_format_that_overwrites_the_source(
     assert image.read_bytes() == b"content"
 
 
-def test_prepare_requires_ssh_keys(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+def test_prepare_without_ssh_keys_uses_password_login(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     images = tmp_path / "images"
     images.mkdir()
-    (images / "debian-13-genericcloud-amd64.qcow2").write_bytes(b"")
+    image = images / "debian-13-genericcloud-amd64.qcow2"
+    image.write_bytes(b"")
     config = write_config(tmp_path, images)
-    assert main(["prepare", "--config", str(config)]) == 1
-    assert "no SSH keys configured" in capsys.readouterr().err
+    staged: dict[str, str] = {}
+
+    def fake_run(argv):
+        if argv[0] == "genisoimage":
+            staged["user-data"] = Path(argv[-3]).read_text()
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(
+        "qm_template.prepare.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+    monkeypatch.setattr("qm_template.prepare.run", fake_run)
+    assert main(["prepare", "--config", str(config)]) == 0
+    assert "ssh_authorized_keys" not in staged["user-data"]
+    assert "No SSH keys configured" in capsys.readouterr().err
 
 
 def test_prepare_runs_tools_with_staged_seed_files(
