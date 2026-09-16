@@ -6,6 +6,9 @@ authors = [{ name = "ak1ra", email = "git@ak1ra.xyz" }]
 dependencies = [
     "argcomplete>=3.7.2",
     "pydantic-settings>=2.15.0",
+    "proxmoxer>=2.3.0",
+    "requests>=2.32.0",
+    "requests-toolbelt>=1.0.0",
 ]
 requires-python = ">=3.11"
 classifiers = [
