@@ -9,6 +9,7 @@ from qm_template.checksum import (
     verify_checksum,
 )
 from qm_template.errors import QmTemplateError
+from qm_template.signature import Signature
 
 DIGEST = "a" * 128
 
@@ -19,6 +20,62 @@ def test_fetch_checksum_uses_http_helper(monkeypatch):
         lambda url: f"{DIGEST}  image.qcow2\n",
     )
     assert fetch_checksum("https://example.com/SHA512SUMS", "image.qcow2") == DIGEST
+
+
+def test_fetch_checksum_verifies_the_checksum_signature(monkeypatch):
+    verified: list[object] = []
+    signature = Signature(
+        url="https://example.com/SHA256SUMS.gpg",
+        key_url="https://example.com/key.asc",
+    )
+    monkeypatch.setattr(
+        "qm_template.checksum.http_get_text",
+        lambda _url: f"{DIGEST}  image.qcow2\n",
+    )
+    monkeypatch.setattr(
+        "qm_template.checksum.verify_signature",
+        lambda text, sig: verified.append((text, sig)),
+    )
+    assert (
+        fetch_checksum(
+            "https://example.com/SHA256SUMS", "image.qcow2", signature=signature
+        )
+        == DIGEST
+    )
+    assert verified == [(f"{DIGEST}  image.qcow2\n", signature)]
+
+
+def test_fetch_checksum_skips_verification_when_disabled_or_targeting_the_image(
+    monkeypatch,
+):
+    verified: list[object] = []
+    monkeypatch.setattr(
+        "qm_template.checksum.http_get_text",
+        lambda _url: f"{DIGEST}  image.qcow2\n",
+    )
+    monkeypatch.setattr(
+        "qm_template.checksum.verify_signature",
+        lambda *args: verified.append(args),
+    )
+    fetch_checksum(
+        "https://example.com/SHA512SUMS",
+        "image.qcow2",
+        signature=Signature(
+            url="https://example.com/image.asc",
+            key_url="https://example.com/key.asc",
+            target="image",
+        ),
+    )
+    fetch_checksum(
+        "https://example.com/SHA512SUMS",
+        "image.qcow2",
+        signature=Signature(
+            url="https://example.com/image.asc",
+            key_url="https://example.com/key.asc",
+        ),
+        verify=False,
+    )
+    assert verified == []
 
 
 def test_parse_gnu_format():

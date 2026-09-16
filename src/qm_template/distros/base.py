@@ -6,6 +6,7 @@ from typing import ClassVar
 
 from qm_template.errors import QmTemplateError
 from qm_template.http import latest_name, list_directory
+from qm_template.signature import Signature
 
 
 @dataclass(frozen=True)
@@ -57,6 +58,7 @@ class RemoteImage:
     checksum_url: str
     algorithm: str
     tag: str | None = None
+    signature: Signature | None = None
 
     @property
     def local_path(self) -> Path:

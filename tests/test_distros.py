@@ -331,3 +331,92 @@ def test_opensuse_leap_resolves(monkeypatch):
     assert image.url.endswith(f"/15.6/appliances/{filename}")
     assert image.checksum_url == f"{image.url}.sha256"
     assert image.local_path == Path("opensuse/15.6") / filename
+
+
+def test_ubuntu_declares_a_signed_checksum(monkeypatch):
+    monkeypatch.setattr(
+        "qm_template.distros.base.list_directory", lambda _url: ["20260911"]
+    )
+    distro = Ubuntu()
+    image = distro.resolve(distro.merge({}, {}))
+    assert image.signature is not None
+    assert image.signature.url.endswith("/SHA256SUMS.gpg")
+    assert image.signature.target == "checksum"
+    assert image.signature.fingerprint == "D2EB44626FDDC30B513D5BB71A5D6C4C7DB87C81"
+    assert image.signature.key_url.startswith("https://keyserver.ubuntu.com/")
+
+
+def test_alpine_signs_the_downloaded_image(monkeypatch):
+    filename = "generic_alpine-3.24.1-x86_64-bios-cloudinit-r0.qcow2"
+    monkeypatch.setattr(
+        "qm_template.distros.base.list_directory", lambda _url: [filename]
+    )
+    distro = Alpine()
+    image = distro.resolve(distro.merge({}, {}))
+    assert image.signature is not None
+    assert image.signature.url == f"{image.url}.asc"
+    assert image.signature.target == "image"
+    assert image.signature.key_url == "https://alpinelinux.org/keys/tomalok.asc"
+
+
+def test_fedora_checksum_is_clearsigned(monkeypatch):
+    listing = ["Fedora-Cloud-Base-Generic-44-1.10.x86_64.qcow2"]
+    monkeypatch.setattr("qm_template.distros.base.list_directory", lambda _url: listing)
+    distro = Fedora()
+    image = distro.resolve(distro.merge({}, {}))
+    assert image.signature is not None
+    assert image.signature.url == image.checksum_url
+    assert image.signature.kind == "clearsigned"
+    assert image.signature.fingerprint == "36F612DCF27F7D1A48A835E4DBFCF71C6D9F90A6"
+
+
+def test_almalinux_signs_the_checksum_file(monkeypatch):
+    monkeypatch.setattr(
+        "qm_template.distros.base.list_directory",
+        lambda _url: ["AlmaLinux-10-GenericCloud-10.2-20260817.0.x86_64.qcow2"],
+    )
+    distro = AlmaLinux()
+    image = distro.resolve(distro.merge({}, {}))
+    assert image.signature is not None
+    assert image.signature.url == f"{image.checksum_url}.asc"
+    assert image.signature.key_url.endswith("RPM-GPG-KEY-AlmaLinux-10")
+    assert image.signature.fingerprint == "EE6DB7B98F5BF5EDD9DA0DE5DEE5C11CC2A1E572"
+
+
+def test_rocky_9_pins_the_release_key(monkeypatch):
+    monkeypatch.setattr(
+        "qm_template.distros.base.list_directory",
+        lambda _url: ["Rocky-9-GenericCloud-Base-9.6-20260101.0.x86_64.qcow2"],
+    )
+    distro = RockyLinux()
+    image = distro.resolve(distro.merge({}, {"release": "9"}))
+    assert image.signature is not None
+    assert image.signature.key_url.endswith("RPM-GPG-KEY-Rocky-9")
+    assert image.signature.fingerprint == "21CB256AE16FC54C6E652949702D426D350D275D"
+
+
+def test_archlinux_signs_the_downloaded_image(monkeypatch):
+    monkeypatch.setattr(
+        "qm_template.distros.base.list_directory", lambda _url: ["v20260901.583572"]
+    )
+    distro = ArchLinux()
+    image = distro.resolve(distro.merge({}, {}))
+    assert image.signature is not None
+    assert image.signature.url == f"{image.url}.sig"
+    assert image.signature.target == "image"
+    assert image.signature.key_url.startswith("https://keyserver.ubuntu.com/")
+
+
+def test_debian_and_centos_have_no_upstream_signature(monkeypatch):
+    monkeypatch.setattr(
+        "qm_template.distros.base.list_directory", lambda _url: ["20260413-2447"]
+    )
+    debian = Debian()
+    assert debian.resolve(debian.merge({}, {})).signature is None
+
+    monkeypatch.setattr(
+        "qm_template.distros.base.list_directory",
+        lambda _url: ["CentOS-Stream-GenericCloud-x86_64-10-20260901.0.x86_64.qcow2"],
+    )
+    centos = CentOSStream()
+    assert centos.resolve(centos.merge({}, {})).signature is None

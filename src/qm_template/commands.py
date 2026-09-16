@@ -53,6 +53,7 @@ from qm_template.pve import (
     vm_config_path,
 )
 from qm_template.shell import pretty
+from qm_template.signature import verify_image
 
 
 def _set_completer(
@@ -158,7 +159,12 @@ def run_download(args: argparse.Namespace, settings: Settings) -> None:
         print(pretty(downloader.build_command(image.url, part_path(destination))))
         return
     destination.parent.mkdir(parents=True, exist_ok=True)
-    expected = fetch_checksum(image.checksum_url, image.filename)
+    expected = fetch_checksum(
+        image.checksum_url,
+        image.filename,
+        signature=image.signature,
+        verify=settings.download.verify_signature,
+    )
     if destination.is_file():
         if verify_checksum(destination, expected, image.algorithm):
             save_checksum(destination, expected, image.algorithm)
@@ -167,6 +173,12 @@ def run_download(args: argparse.Namespace, settings: Settings) -> None:
         log.warning("Checksum mismatch for %s, removing it", destination)
         destination.unlink()
     part = _download_verified(image, destination, downloader, expected)
+    if (
+        settings.download.verify_signature
+        and image.signature is not None
+        and image.signature.target == "image"
+    ):
+        verify_image(part, image.signature)
     part.replace(destination)
     save_checksum(destination, expected, image.algorithm)
     log.info("Saved %s", destination)

@@ -1,6 +1,13 @@
 from collections.abc import Mapping
 
 from qm_template.distros.base import Distro, Option, RemoteImage
+from qm_template.signature import Signature
+
+ARCH_BOXES_SIGNING_KEY = "1B9A16984A4E8CB448712D2AE0B78BF4326C6F8F"
+ARCH_BOXES_KEY_URL = (
+    "https://keyserver.ubuntu.com/pks/lookup"
+    f"?op=get&search=0x{ARCH_BOXES_SIGNING_KEY}&options=mr"
+)
 
 
 class ArchLinux(Distro):
@@ -32,4 +39,10 @@ class ArchLinux(Distro):
             url=f"{base}{filename}",
             checksum_url=f"{base}{filename}.SHA256",
             algorithm="sha256",
+            signature=Signature(
+                url=f"{base}{filename}.sig",
+                key_url=ARCH_BOXES_KEY_URL,
+                target="image",
+                fingerprint=ARCH_BOXES_SIGNING_KEY,
+            ),
         )

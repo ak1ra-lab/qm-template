@@ -99,6 +99,7 @@ class DownloadSettings(BaseModel):
     connections: int = Field(8, ge=1)
     quiet: bool = False
     default_distro: str = "debian"
+    verify_signature: bool = True
 
     @field_validator("default_distro")
     @classmethod

@@ -6,6 +6,7 @@ import pytest
 
 from qm_template.errors import QmTemplateError
 from qm_template.http import (
+    http_get_bytes,
     http_get_text,
     latest_name,
     list_directory,
@@ -49,6 +50,14 @@ def test_http_get_text_decodes_response(monkeypatch):
         lambda _request, timeout: FakeResponse(b"hello"),
     )
     assert http_get_text("https://example.com/x") == "hello"
+
+
+def test_http_get_bytes_returns_raw_bytes(monkeypatch):
+    monkeypatch.setattr(
+        "qm_template.http.urllib.request.urlopen",
+        lambda _request, timeout: FakeResponse(b"\x88\x01raw signature"),
+    )
+    assert http_get_bytes("https://example.com/x.sig") == b"\x88\x01raw signature"
 
 
 def test_http_get_text_retries_server_errors(monkeypatch):

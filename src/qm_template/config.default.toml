@@ -22,6 +22,12 @@ quiet = false
 # Distro used when `qm-template download` is called without a name.
 default_distro = "debian"
 
+# Verify the GPG signature of the checksum file (or, for Alpine and Arch
+# Linux, of the image itself) before trusting it. Distros without an upstream
+# signature (Debian, CentOS Stream) are skipped. Set to false to skip
+# verification, for example when gnupg is not installed.
+verify_signature = true
+
 # Optional per-distro overrides such as [distro.debian]. `qm-template distros`
 # lists every parameter with its default and accepted values; command-line
 # options override these settings. For example:

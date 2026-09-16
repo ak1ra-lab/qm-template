@@ -455,7 +455,7 @@ def test_download_skips_an_already_verified_image(
         "qm_template.distros.base.list_directory", lambda _url: [filename]
     )
     monkeypatch.setattr(
-        "qm_template.commands.fetch_checksum", lambda _url, _name: digest
+        "qm_template.commands.fetch_checksum", lambda *_args, **_kwargs: digest
     )
     monkeypatch.setattr(
         "qm_template.commands.select_downloader", lambda *_args, **_kwargs: None
@@ -494,7 +494,7 @@ def test_download_replaces_a_corrupt_existing_image(
         "qm_template.distros.base.list_directory", lambda _url: [filename]
     )
     monkeypatch.setattr(
-        "qm_template.commands.fetch_checksum", lambda _url, _name: digest
+        "qm_template.commands.fetch_checksum", lambda *_args, **_kwargs: digest
     )
     monkeypatch.setattr(
         "qm_template.commands.select_downloader", lambda *_args, **_kwargs: None
@@ -506,6 +506,9 @@ def test_download_replaces_a_corrupt_existing_image(
         return part
 
     monkeypatch.setattr("qm_template.commands._download_verified", fake_verified)
+    monkeypatch.setattr(
+        "qm_template.commands.verify_image", lambda *_args, **_kwargs: None
+    )
     assert main(["download", "alpine", "--config", str(config)]) == 0
     captured = capsys.readouterr()
     assert "Checksum mismatch" in captured.err

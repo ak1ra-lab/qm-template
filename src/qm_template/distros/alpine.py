@@ -2,6 +2,10 @@ import re
 from collections.abc import Mapping
 
 from qm_template.distros.base import Distro, Option, RemoteImage
+from qm_template.signature import Signature
+
+ALPINE_SIGNING_KEY = "F26ADFADBAE702EF7AF637459DA7EF23BFFCDF22"
+ALPINE_KEY_URL = "https://alpinelinux.org/keys/tomalok.asc"
 
 
 class Alpine(Distro):
@@ -35,4 +39,10 @@ class Alpine(Distro):
             url=f"{base}{filename}",
             checksum_url=f"{base}{filename}.sha512",
             algorithm="sha512",
+            signature=Signature(
+                url=f"{base}{filename}.asc",
+                key_url=ALPINE_KEY_URL,
+                target="image",
+                fingerprint=ALPINE_SIGNING_KEY,
+            ),
         )

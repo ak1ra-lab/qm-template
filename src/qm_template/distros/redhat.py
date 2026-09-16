@@ -3,6 +3,24 @@ from collections.abc import Mapping
 
 from qm_template.distros.base import Distro, Option, RemoteImage
 from qm_template.errors import QmTemplateError
+from qm_template.signature import Signature
+
+ROCKY_KEY_URL = "https://dl.rockylinux.org/pub/rocky/RPM-GPG-KEY-Rocky-{major}"
+ROCKY_SIGNING_KEYS = {
+    "9": "21CB256AE16FC54C6E652949702D426D350D275D",
+    "10": "FC226859C0860BF0DDB95B085B106C736FEDFC85",
+}
+
+ALMA_KEY_URL = "https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux-{major}"
+ALMA_SIGNING_KEYS = {
+    "9": "BF18AC2876178908D6E71267D36CB86CB86B3716",
+    "10": "EE6DB7B98F5BF5EDD9DA0DE5DEE5C11CC2A1E572",
+}
+
+FEDORA_KEY_URL = "https://fedoraproject.org/fedora.gpg"
+FEDORA_SIGNING_KEYS = {
+    "44": "36F612DCF27F7D1A48A835E4DBFCF71C6D9F90A6",
+}
 
 
 class RockyLinux(Distro):
@@ -40,13 +58,20 @@ class RockyLinux(Distro):
             rf"Rocky-{re.escape(release)}-{re.escape(name_part)}"
             rf"-\d[\d.]*-\d{{8}}\.\d+\.{re.escape(arch)}\.qcow2",
         )
+        major = release.split(".")[0]
+        checksum_url = f"{base}{filename}.CHECKSUM"
         return RemoteImage(
             distro=self.name,
             release=release,
             filename=filename,
             url=f"{base}{filename}",
-            checksum_url=f"{base}{filename}.CHECKSUM",
+            checksum_url=checksum_url,
             algorithm="sha256",
+            signature=Signature(
+                url=f"{checksum_url}.asc",
+                key_url=ROCKY_KEY_URL.format(major=major),
+                fingerprint=ROCKY_SIGNING_KEYS.get(major),
+            ),
         )
 
 
@@ -73,13 +98,20 @@ class AlmaLinux(Distro):
             rf"AlmaLinux-{re.escape(release)}-{re.escape(variant)}"
             rf"-\d[\d.]*-\d{{8}}(?:\.\d+)?\.{re.escape(arch)}\.qcow2",
         )
+        major = release.split(".")[0]
+        checksum_url = f"{base}CHECKSUM"
         return RemoteImage(
             distro=self.name,
             release=release,
             filename=filename,
             url=f"{base}{filename}",
-            checksum_url=f"{base}CHECKSUM",
+            checksum_url=checksum_url,
             algorithm="sha256",
+            signature=Signature(
+                url=f"{checksum_url}.asc",
+                key_url=ALMA_KEY_URL.format(major=major),
+                fingerprint=ALMA_SIGNING_KEYS.get(major),
+            ),
         )
 
 
@@ -116,13 +148,20 @@ class Fedora(Distro):
             match = re.fullmatch(pattern, filename)
             assert match is not None
             tag = match.group(1)
+        checksum_url = f"{base}Fedora-Cloud-{release}-{tag}-{arch}-CHECKSUM"
         return RemoteImage(
             distro=self.name,
             release=release,
             filename=filename,
             url=f"{base}{filename}",
-            checksum_url=f"{base}Fedora-Cloud-{release}-{tag}-{arch}-CHECKSUM",
+            checksum_url=checksum_url,
             algorithm="sha256",
+            signature=Signature(
+                url=checksum_url,
+                key_url=FEDORA_KEY_URL,
+                kind="clearsigned",
+                fingerprint=FEDORA_SIGNING_KEYS.get(release),
+            ),
         )
 
 
