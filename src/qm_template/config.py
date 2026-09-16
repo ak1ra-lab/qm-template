@@ -2,6 +2,7 @@ import base64
 import binascii
 import hashlib
 import os
+import re
 import tomllib
 from collections.abc import Mapping
 from importlib import resources
@@ -141,6 +142,19 @@ class CreateSettings(BaseModel):
     cpu: str = "host"
     bridge: str = "vmbr0"
     firmware: Firmware = "auto"
+    tags: tuple[str, ...] = ()
+    pool: str | None = None
+    onboot: bool = False
+    description: str | None = None
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def _split_tags(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return tuple(tag.strip() for tag in re.split(r"[,;]", value) if tag.strip())
+        if isinstance(value, (list, tuple)):
+            return tuple(str(tag).strip() for tag in value if str(tag).strip())
+        return value
 
 
 class VmidSettings(BaseModel):

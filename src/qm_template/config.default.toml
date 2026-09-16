@@ -44,6 +44,12 @@ bridge = "vmbr0"
 # VMs get an EFI disk (--bios ovmf, --efidisk0) with Secure Boot disabled.
 firmware = "auto"
 
+# Optional Proxmox metadata; each key is omitted from qm create when unset.
+# tags = ["template", "cloud"]
+# pool = "templates"
+# onboot = true
+# description = "Debian 13 cloud template"
+
 [vmid]
 # When --vm-id is omitted, the first free VM ID at or after start (scanning
 # upward by step) is used. The 9000+ range keeps templates away from regular

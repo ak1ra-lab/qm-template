@@ -268,6 +268,51 @@ def test_create_dry_run_firmware_override(
     assert "    --bios ovmf \\\n" in capsys.readouterr().out
 
 
+def test_create_dry_run_includes_metadata_options(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    images = tmp_path / "images"
+    images.mkdir()
+    (images / "debian-13-genericcloud-amd64.qcow2").write_bytes(b"")
+    config = write_config(
+        tmp_path,
+        images,
+        cloudinit='sshkeys = ["ssh-ed25519 AAAA"]\n',
+    )
+    monkeypatch.setattr(
+        "qm_template.commands.vm_config_path",
+        lambda vm_id: tmp_path / f"{vm_id}.conf",
+    )
+    monkeypatch.setattr("qm_template.commands.check_storage", lambda _storage: None)
+    assert (
+        main(
+            [
+                "create",
+                "--dry-run",
+                "--vm-id",
+                "9000",
+                "--tags",
+                "template,cloud",
+                "--pool",
+                "templates",
+                "--onboot",
+                "--description",
+                "Debian 13 cloud template",
+                "--config",
+                str(config),
+            ]
+        )
+        == 0
+    )
+    output = capsys.readouterr().out
+    assert "    --tags 'template;cloud' \\\n" in output
+    assert "    --pool templates \\\n" in output
+    assert "    --onboot 1 \\\n" in output
+    assert "    --description 'Debian 13 cloud template' \\\n" in output
+
+
 def test_create_picks_next_free_vm_id(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],

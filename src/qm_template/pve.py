@@ -131,9 +131,19 @@ def build_qm_create(
             ["--bios", "ovmf"],
             ["--efidisk0", f"{storage}:1,pre-enrolled-keys=0"],
         ]
+    metadata_args: CommandGroups = []
+    if settings.tags:
+        metadata_args.append(["--tags", ";".join(settings.tags)])
+    if settings.pool:
+        metadata_args.append(["--pool", settings.pool])
+    if settings.onboot:
+        metadata_args.append(["--onboot", "1"])
+    if settings.description:
+        metadata_args.append(["--description", settings.description])
     return [
         ["qm", "create", str(vm_id)],
         ["--name", vm_name],
+        *metadata_args,
         ["--cpu", f"cputype={settings.cpu}"],
         ["--cores", str(settings.cores)],
         ["--balloon", str(settings.memory)],

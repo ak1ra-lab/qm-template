@@ -187,6 +187,17 @@ def add_create_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--cpu", help="CPU type passed as cputype (default: host)")
     parser.add_argument("--bridge", help="network bridge")
     parser.add_argument(
+        "--tags", help="Proxmox tags, separated by commas or semicolons"
+    )
+    parser.add_argument("--pool", help="Proxmox resource pool")
+    parser.add_argument(
+        "--onboot",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="start the VM when the node boots",
+    )
+    parser.add_argument("--description", help="VM description shown in Proxmox")
+    parser.add_argument(
         "--firmware",
         choices=FIRMWARE_VALUES,
         help="VM firmware; auto uses uefi when the image name says UEFI",
@@ -230,13 +241,17 @@ def run_create(args: argparse.Namespace, settings: Settings) -> None:
         log.info("Selected free VM ID: %d", vm_id)
     log.info("Creating VM %d (%s)", vm_id, vm_name)
     log.debug(
-        "storage=%s cores=%d memory=%d cpu=%s bridge=%s firmware=%s",
+        "storage=%s cores=%d memory=%d cpu=%s bridge=%s firmware=%s "
+        "pool=%s onboot=%s tags=%s",
         create.storage,
         create.cores,
         create.memory,
         create.cpu,
         create.bridge,
         firmware,
+        create.pool,
+        create.onboot,
+        ";".join(create.tags) or "-",
     )
 
     check_storage(create.storage)

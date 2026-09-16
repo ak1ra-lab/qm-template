@@ -87,6 +87,44 @@ def test_detect_firmware_reads_the_image_name():
     )
 
 
+def test_build_qm_create_omits_metadata_by_default():
+    command = build_qm_create(
+        9000,
+        "debian-template",
+        Path("/images/x.qcow2"),
+        Path("/keys.pub"),
+        CreateSettings(),
+        CloudInitSettings(),
+    )
+    argv = flatten(command)
+    for flag in ("--tags", "--pool", "--onboot", "--description"):
+        assert flag not in argv
+
+
+def test_build_qm_create_adds_metadata():
+    settings = CreateSettings(
+        tags=("template", "cloud"),
+        pool="templates",
+        onboot=True,
+        description="Debian 13 cloud template",
+    )
+    command = build_qm_create(
+        9000,
+        "debian-template",
+        Path("/images/x.qcow2"),
+        Path("/keys.pub"),
+        settings,
+        CloudInitSettings(),
+    )
+    argv = flatten(command)
+    assert ["--tags", "template;cloud"] == argv[argv.index("--tags") :][:2]
+    assert ["--pool", "templates"] == argv[argv.index("--pool") :][:2]
+    assert ["--onboot", "1"] == argv[argv.index("--onboot") :][:2]
+    assert ["--description", "Debian 13 cloud template"] == argv[
+        argv.index("--description") :
+    ][:2]
+
+
 def test_build_qm_create_uefi_adds_ovmf_and_efidisk():
     settings = CreateSettings(storage="local-zfs")
     command = build_qm_create(
