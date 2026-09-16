@@ -40,8 +40,14 @@ prepares local VM artifacts, with Cloud-Init support.
 ```shell
 uv tool install qm-template
 qm-template download debian
-qm-template distros
+qm-template create --vm-id 9000
 ```
 
-See [Getting Started](getting-started.md) for configuration, usage and
-development instructions.
+## Documentation
+
+- [Getting Started](getting-started.md)
+- [Configuration](configuration.md)
+- [Download images](usage/download.md)
+- [Create a template](usage/create.md)
+- [Prepare local artifacts](usage/prepare.md)
+- [List distros](usage/distros.md)

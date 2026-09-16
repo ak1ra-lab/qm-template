@@ -35,7 +35,14 @@
 ```shell
 uv tool install qm-template
 qm-template download debian
-qm-template distros
+qm-template create --vm-id 9000
 ```
 
-配置、用法和开发说明请参阅[入门指南](getting-started.md)。
+## 文档
+
+- [入门指南](getting-started.md)
+- [配置](configuration.md)
+- [下载镜像](usage/download.md)
+- [创建虚拟机模板](usage/create.md)
+- [准备本地产物](usage/prepare.md)
+- [列出发行版](usage/distros.md)

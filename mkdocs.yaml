@@ -13,6 +13,12 @@ dev_addr: 0.0.0.0:8000
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
+  - Configuration: configuration.md
+  - Usage:
+      - Download images: usage/download.md
+      - Create a template: usage/create.md
+      - Prepare local artifacts: usage/prepare.md
+      - List distros: usage/distros.md
 
 theme:
   name: material
@@ -48,6 +54,12 @@ plugins:
           nav_translations:
             Home: 首页
             Getting Started: 入门指南
+            Configuration: 配置
+            Usage: 使用
+            Download images: 下载镜像
+            Create a template: 创建虚拟机模板
+            Prepare local artifacts: 准备本地产物
+            List distros: 列出发行版
   - mkdocstrings:
       handlers:
         python:
