@@ -16,6 +16,11 @@ prepares local VM artifacts, with Cloud-Init support.
 - **A single `qm create ... --template 1` command** instead of a chain of
   `qm set` calls, with automatic next free VM ID selection, a configurable CPU
   type and optional tags, pool, onboot and description.
+- **Remote Proxmox VE hosts**: `create --pve <name>` builds the template on a
+  remote host through its API (Proxmox VE >= 8.4) and an API token, uploading
+  the image to an `import` storage and reusing it on later runs. Every host
+  lives in a `[pve.<name>]` section that can override `[create]`, `[vmid]` and
+  `[cloudinit]` for that host.
 - **Local VM artifacts** with `qm-template prepare`: a hypervisor disk
   conversion via `qemu-img` (VDI, VMDK, QCOW2, raw or VHDX) and a generated
   NoCloud seed ISO with `genisoimage`/`xorriso`/`mkisofs`, both next to the

@@ -31,8 +31,14 @@ prepares local VM artifacts, with Cloud-Init support.
 - **Complete `qm create` command**: the whole template is assembled into a
   single `qm create ... --template 1` invocation instead of a chain of
   `qm set` calls, including optional tags, pool, onboot and description
+- **Remote Proxmox VE hosts**: `create --pve <name>` drives a remote host
+  through its API (Proxmox VE >= 8.4) with an API token, uploading the image to
+  an `import` storage and keeping it for reuse; optional `[pve.<name>]`
+  sections describe each host and can override the global `[create]`, `[vmid]`
+  and `[cloudinit]` settings
 - **Automatic VM IDs**: the next free ID is picked from `qm list` (or the
-  Proxmox config directory), starting at `vmid.start` (default 9000)
+  Proxmox config directory), starting at `vmid.start` (default 9000); in API
+  mode the cluster is asked instead
 - **Configurable CPU type**: `create.cpu`/`--cpu` overrides the default
   `cputype=host` when migration across CPU generations matters
 - **Local VM artifacts**: `prepare` converts an image to VDI, VMDK, QCOW2, raw
@@ -61,8 +67,9 @@ prepares local VM artifacts, with Cloud-Init support.
 
 - Python >= 3.11
 - [uv](https://docs.astral.sh/uv/) to install and develop
-- A Proxmox VE host, normally running as root
-- Proxmox VE (`qm`, `pvesm`) for the `create` command
+- A Proxmox VE host, normally running as root, or a remote host reachable
+  through its API (Proxmox VE >= 8.4) for `create --pve`
+- Proxmox VE (`qm`, `pvesm`) for `create` without `--pve`
 - One of `axel`, `aria2c`, `wget` or `curl` for the `download` command
 - `gpg` for signature verification (Ubuntu, Fedora, Rocky, AlmaLinux,
   openSUSE, Alpine and Arch Linux); set `download.verify_signature = false` to
@@ -141,6 +148,27 @@ do not sign their cloud image metadata, and Amazon Linux signs its checksums
 with RSA, which `qm-template` does not verify yet; for those a mirror serves
 both the image and its checksum, so use a trusted mirror if authenticity
 matters.
+
+Optional `[pve.<name>]` sections describe remote Proxmox VE hosts for
+`create --pve <name>`: `host`, `user`, `token_name`, `token_secret` and
+`import_storage` are the relevant keys, plus optional `node`, `verify_ssl`,
+`port`, `timeout` and `task_timeout`; nested `[pve.<name>.create]`,
+`[pve.<name>.vmid]` and `[pve.<name>.cloudinit]` tables override the global
+sections for that host only. The token secret can be kept out of the file with
+`QM_TEMPLATE_PVE__<NAME>__TOKEN_SECRET`, and the file should be readable by its
+owner only:
+
+```toml
+[pve.home]
+host = "pve.home.arpa"
+user = "qm-template@pve"
+token_name = "automation"
+token_secret = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+import_storage = "local"
+
+[pve.home.vmid]
+start = 9000
+```
 
 Print a starting-point configuration to stdout and redirect it; the file is
 never written automatically:
@@ -266,6 +294,38 @@ qm create 9000 \
     --template 1
 ```
 
+Add `--pve <name>` to create the template on a remote Proxmox VE host through
+its API instead of running `qm` locally; API mode requires Proxmox VE >= 8.4.
+The image is uploaded to the host's `import_storage` (a file-based storage with
+the `import` content type enabled) and imported from there. The uploaded image
+is kept, so a later run with the same file skips the transfer. VM IDs are
+allocated cluster-wide while `vmid.start`/`vmid.step` still apply, and a failed
+creation removes the incomplete VM again:
+
+```shell
+# remote create and API request preview
+qm-template create debian-13 --pve home --vm-name debian-13-template
+qm-template create debian-13 --pve home --dry-run
+```
+
+Prepare the host first:
+
+```shell
+pveum user add qm-template@pve
+pveum acl modify / --users qm-template@pve --roles PVEAdmin
+pveum user token add qm-template@pve automation --privsep 0
+```
+
+Privilege separation is enabled by default, so without `--privsep 0` the token
+starts with no permissions and needs its own ACL entry
+(`pveum acl modify / --tokens 'qm-template@pve!automation' --roles PVEAdmin`).
+Then enable the `import` content type on a file-based storage (Datacenter ->
+Storage -> your storage -> Edit -> Content) and set `import_storage` to its ID.
+LVM/ZFS storages cannot hold import content; `create.storage` (for example
+`local-lvm`) remains the target for the VM disk and the Cloud-Init drive. Set
+`verify_ssl = false` (or trust the PVE CA) when the host still uses its
+self-signed certificate.
+
 ### Prepare local VM artifacts
 
 Most hypervisors cannot boot `.qcow2` directly, so guest disks have to be
@@ -350,7 +410,8 @@ qm-template/
 │   ├── http.py         # HTTP helpers, retries and directory listings
 │   ├── images.py       # local image discovery
 │   ├── log.py          # logging setup
-│   ├── pve.py          # qm/pvesm integration and VM ID selection
+│   ├── api.py          # remote Proxmox VE API target (proxmoxer)
+│   ├── pve.py          # local qm/pvesm target, VM spec and VM ID selection
 │   ├── shell.py        # grouped command rendering and execution
 │   ├── signature.py    # gpg signature verification of checksums and images
 │   ├── prepare.py      # qemu-img / genisoimage / xorriso / mkisofs wrappers
@@ -365,5 +426,6 @@ The published documentation site lives at <https://ak1ra-lab.github.io/qm-templa
 ## References
 
 - [Proxmox VE Cloud-Init Support](https://pve.proxmox.com/wiki/Cloud-Init_Support)
+- [proxmoxer](https://proxmoxer.github.io/docs/) (used for API mode)
 - [Debian Cloud Images](https://cloud.debian.org/images/cloud/)
 - [Ubuntu Cloud Images](https://cloud-images.ubuntu.com/)

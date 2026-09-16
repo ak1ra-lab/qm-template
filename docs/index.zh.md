@@ -15,6 +15,10 @@
   （可用 `--quiet` 关闭），并支持失败重试。
 - **单条 `qm create ... --template 1` 命令**，而不是一串 `qm set` 调用；自动选择
   下一个空闲 VM ID，可配置 CPU 类型，并支持可选的 tags、pool、onboot 和 description。
+- **远程 Proxmox VE 主机**：`create --pve <name>` 通过 API（Proxmox VE >= 8.4）
+  和 API token 在远程主机上创建模板，镜像上传到 `import` 类型的存储并在后续运行中
+  复用。每台主机位于 `[pve.<name>]` 配置段，可覆盖该主机的 `[create]`、`[vmid]` 和
+  `[cloudinit]` 设置。
 - **本地虚拟机产物**：`qm-template prepare` 通过 `qemu-img` 转换磁盘格式
   （VDI、VMDK、QCOW2、raw 或 VHDX），并用 `genisoimage`/`xorriso`/`mkisofs` 生成
   NoCloud seed ISO，两者与源镜像同目录存放。

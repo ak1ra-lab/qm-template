@@ -4,8 +4,9 @@
 
 - Python >= 3.11
 - [uv](https://docs.astral.sh/uv/)
-- Proxmox VE 主机，通常以 root 身份运行
-- `create` 命令需要 Proxmox VE（`qm`、`pvesm`）
+- Proxmox VE 主机，通常以 root 身份运行；或通过 API 访问的远程主机
+  （Proxmox VE >= 8.4），配合 `create --pve` 使用
+- `create` 在未使用 `--pve` 时需要 Proxmox VE（`qm`、`pvesm`）
 - `download` 命令需要 `axel`、`aria2c`、`wget` 或 `curl` 之一
 - 签名校验需要 `gpg`；Ubuntu、Fedora、Rocky、AlmaLinux、openSUSE、Alpine 和
   Arch Linux 提供已签名元数据
@@ -61,6 +62,26 @@ UEFI，其余使用 BIOS。UEFI 模板通过 `--bios ovmf` 和一块 EFI 磁盘�
 可选的 Proxmox 元数据。`vmid.start` 和 `vmid.step`（默认 `9000` 和 `1`）控制
 VM ID 的自动选择。任何命令都可以加 `-v`（输出 debug 日志）或 `-vv`（额外输出
 日志级别和时间戳）用于排查问题。
+
+远程主机可选，位于 `[pve.<name>]` 下，供 `create --pve <name>` 使用。必填
+`host`、`user`、`token_name`、`token_secret`，上传镜像还需要 `import_storage`；
+多节点集群必须设置 `node`，`verify_ssl`、`port`、`timeout`、`task_timeout`
+均有默认值。嵌套的 `[pve.<name>.create]`、`[pve.<name>.vmid]` 和
+`[pve.<name>.cloudinit]` 只覆盖该主机的全局配置。可用
+`QM_TEMPLATE_PVE__<NAME>__TOKEN_SECRET` 避免把 token secret 写进文件，并确保
+配置文件仅所有者可读：
+
+```toml
+[pve.home]
+host = "pve.home.arpa"
+user = "qm-template@pve"
+token_name = "automation"
+token_secret = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+import_storage = "local"
+
+[pve.home.vmid]
+start = 9000
+```
 
 按发行版覆盖参数是可选的，位于 `[distro.<name>]` 下；这些覆盖不会出现在
 `qm-template config` 打印的默认配置中，只在某个发行版需要偏离内置默认值时才添加：
@@ -118,7 +139,7 @@ eval "$(register-python-argcomplete qm-template)"
 把对应行加入 `~/.bashrc`/`~/.zshrc`。补全覆盖命令名、选项以及按发行版的参数值；
 每个发行版参数选项（`--release`、`--variant`、`--arch`、`--tag`、`--fs`、
 `--firmware` 等）都会根据命令行中指定的发行版给出候选值，不支持某个参数的发行版
-不会给出该参数的候选。
+不会给出该参数的候选。`create --pve` 会补全 `[pve.<name>]` 中配置的主机名。
 
 ## 下载镜像
 
@@ -185,6 +206,51 @@ qm-template create --dry-run --vm-id 9000
 `qm list` 与 `/etc/pve/qemu-server/*.conf` 合并收集已占用的 ID，并使用从
 `vmid.start`（默认 `9000`）开始、以 `vmid.step` 递增的首个空闲 ID。如果
 `qm create` 失败并留下了 VM 配置，会提示用于清理的 `qm destroy` 命令。
+
+## 远程 Proxmox VE 主机
+
+使用 `--pve NAME` 时，`create` 通过 Proxmox VE API 而不是本地 `qm` 创建模板，
+因此一台工作站可以管理多台主机，无需在主机上安装 `qm-template` 或下载镜像：
+
+```shell
+qm-template create debian-13 --pve home --vm-name debian-13-template
+
+# 仅打印 API 请求，不执行
+qm-template create debian-13 --pve home --dry-run
+```
+
+API 模式要求 Proxmox VE 8.4 或更新。镜像以 `content=import` 上传到主机的
+`import_storage`，然后通过
+`scsi0=<create.storage>:0,import-from=<import_storage>:import/<file>` 导入；
+同名同大小的镜像会直接复用，重复运行无需再次传输。镜像名由
+`paths.images_dir` 下的相对路径展平而来，格式从文件内容判断，因此 Ubuntu 的
+`.img` 镜像也能使用。VM ID 从集群获取（`GET /cluster/nextid`），
+`vmid.start`/`vmid.step` 依然有效。创建失败时会自动删除残留的 VM。`--dry-run`
+会打印上传和 `POST /api2/json/nodes/<node>/qemu` 请求（与本地 `qm create`
+一样，密码会显示出来）。
+
+远程主机需要一次性准备：
+
+- 创建可分配 VM 的用户和 API token：
+
+  ```shell
+  pveum user add qm-template@pve
+  pveum acl modify / --users qm-template@pve --roles PVEAdmin
+  pveum user token add qm-template@pve automation --privsep 0
+  ```
+
+  token 权限不超过用户自身权限；也可以使用更小的自定义角色，但创建 VM 涉及
+  多项权限（`VM.Allocate`、`VM.Config.*`、`Datastore.AllocateSpace`，上传还需要
+  `Datastore.AllocateTemplate`）。权限分离（privilege separation）默认开启，
+  不加 `--privsep 0` 时新 token 自身没有任何权限，需要单独授权：
+  `pveum acl modify / --tokens 'qm-template@pve!automation' --roles PVEAdmin`。
+- 为某个基于文件的存储启用 `import` 内容类型（数据中心 -> 存储 -> 选择存储 ->
+  编辑 -> 内容），并把 `import_storage` 指向它。LVM/ZFS 存储无法存放 import
+  内容；`create.storage`（例如 `local-lvm`）仍然是 VM 磁盘和 Cloud-Init
+  驱动器的目标存储。import 存储需要 Proxmox VE 8.4+。
+- 主机仍在使用自签名证书时，设置 `verify_ssl = false`（或信任 PVE CA）。
+
+低于 8.4 的主机可以继续使用默认的本地模式。
 
 ## 准备本地虚拟机产物
 

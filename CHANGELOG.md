@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add remote Proxmox VE API support: `create --pve <name>` creates the
+  template on a remote host through its API (Proxmox VE >= 8.4) instead of
+  running `qm` locally, so several hosts can be managed from one workstation.
+  A `[pve.<name>]` section holds `host`, `user`, `token_name`, `token_secret`,
+  `import_storage` and optional `node`, `verify_ssl`, `port`, `timeout` and
+  `task_timeout`, and nested `[pve.<name>.create]`, `[pve.<name>.vmid]` and
+  `[pve.<name>.cloudinit]` tables override the global sections for that host.
+  Images are uploaded with the `import` content type (skipped when the same
+  name and size already exists), imported with `import-from`, and an
+  incomplete VM is removed again when creation fails. VM IDs are requested
+  from the cluster while `vmid.start`/`vmid.step` still apply, and `--dry-run`
+  prints the upload and create requests. The token secret can be kept out of
+  the file with `QM_TEMPLATE_PVE__<NAME>__TOKEN_SECRET`; `create --pve`
+  completes the configured host names.
+
+### Changed
+
+- Depend on `proxmoxer` (with `requests` and `requests-toolbelt`) for remote
+  API mode.
+
 ## [0.4.0] - 2026-09-16
 
 ### Added

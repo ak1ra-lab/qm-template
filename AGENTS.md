@@ -2,14 +2,16 @@
 
 `qm-template` is a Python CLI that downloads distro cloud images, creates
 Proxmox VE VM templates and prepares local VM artifacts (disk plus NoCloud
-seed ISO). The `create` command targets a Proxmox VE host and is normally run
-as root; `prepare` typically runs on a workstation. Application code lives
-under `src/qm_template`.
+seed ISO). The `create` command either targets the Proxmox VE host it runs on
+(or is given a remote `[pve.<name>]` host via `--pve` and then uses the
+Proxmox VE API); it is normally run as root in local mode. `prepare` typically
+runs on a workstation. Application code lives under `src/qm_template`.
 
-`download` shells out to `axel`/`aria2c`/`wget`/`curl`; `create` shells out to
-Proxmox VE (`qm`, `pvesm`); `prepare` shells out to `qemu-img`/`genisoimage`.
-None of these must be exercised in tests - tests mock or only cover pure
-logic.
+`download` shells out to `axel`/`aria2c`/`wget`/`curl`; local `create` shells
+out to Proxmox VE (`qm`, `pvesm`); remote `create` talks HTTPS to the Proxmox
+VE API through `proxmoxer`; `prepare` shells out to
+`qemu-img`/`genisoimage`. None of these must be exercised in tests - tests mock
+or only cover pure logic.
 
 ## Tooling
 
@@ -41,7 +43,8 @@ PyPI.
 
 - CLI: `argparse` with `download`, `create`, `prepare` and `distros` subcommands;
   entrypoint `qm-template`. Runtime dependencies are `pydantic-settings` (config
-  validation) and `argcomplete` (shell completion).
+  validation), `argcomplete` (shell completion) and `proxmoxer` with `requests`
+  and `requests-toolbelt` (remote API mode).
 - Short options follow common conventions and are added only for frequently used
   flags: `-c/--config`, `-V/--version`, `-n/--dry-run`, `-q/--quiet`,
   `-f/--force`. Everything else stays long-only and is discoverable through
@@ -50,7 +53,13 @@ PyPI.
   per-key errors and migration hints. `[distro.<name>]` overrides are optional
   and are never written into the generated default config. Environment variables
   use `QM_TEMPLATE_*` with `__` for nesting and beat the file; CLI options beat
-  both.
+  both. `[pve.<name>]` sections describe remote Proxmox VE API hosts and may
+  carry `create`/`vmid`/`cloudinit` sub-tables that override the global
+  sections for that host; per-host layers only override explicitly set fields.
+- `create` targets the local `qm` host by default and a remote `[pve.<name>]`
+  host when `--pve NAME` is given. Both are `PveTarget` implementations
+  (`pve.py`, `api.py`) driven by a shared `VmSpec`; keep the remote target's
+  request builders pure and free of I/O so they stay unit-testable.
 - Distro parameters are declared as `Option` schemas on each `Distro` subclass
   (per-distro defaults, accepted values and help). The same schema drives
   `merge()` validation, `[distro.<name>]` config validation, the generated
