@@ -90,3 +90,28 @@ sshkeys = [
 sshkeys_files = [
     # "~/.ssh/id_ed25519.pub",
 ]
+
+# Remote Proxmox VE hosts for `qm-template create --pve <name>`, which creates
+# the template through the Proxmox VE API instead of running `qm` locally.
+# API mode requires Proxmox VE 8.4 or newer and an API token whose user has VM
+# allocation and datastore permissions; the host must provide a file-based
+# storage with the "import" content type enabled. The API token secret is
+# stored in this file, so keep it readable by the owner only (chmod 600), or
+# set it through QM_TEMPLATE_PVE__<NAME>__TOKEN_SECRET instead.
+#
+# [pve.home]
+# host = "pve.home.arpa"
+# # node = "pve1"  # needed on a cluster with more than one node
+# user = "qm-template@pve"
+# token_name = "automation"
+# token_secret = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+# verify_ssl = true
+# # File-based storage that holds the uploaded images between runs.
+# import_storage = "local"
+# # Optional per-host overrides of the global sections, for example:
+# # [pve.home.vmid]
+# # start = 9000
+# # [pve.home.create]
+# # storage = "local-lvm"
+# # [pve.home.cloudinit]
+# # user = "debian"

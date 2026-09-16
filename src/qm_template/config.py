@@ -13,6 +13,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    SecretStr,
     ValidationError,
     field_validator,
     model_validator,
@@ -184,6 +185,47 @@ class CloudInitSettings(BaseModel):
         return value
 
 
+PVE_HOST_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*")
+
+
+class PveHostSettings(BaseModel):
+    """Connection to a remote Proxmox VE host plus optional per-host overrides."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    host: str
+    node: str | None = None
+    user: str
+    token_name: str
+    token_secret: SecretStr
+    verify_ssl: bool = True
+    port: int = Field(8006, ge=1, le=65535)
+    timeout: float = Field(30, gt=0)
+    task_timeout: int = Field(3600, gt=0)
+    import_storage: str | None = None
+    create: CreateSettings | None = None
+    vmid: VmidSettings | None = None
+    cloudinit: CloudInitSettings | None = None
+
+    @field_validator("host")
+    @classmethod
+    def _normalize_host(cls, value: str) -> str:
+        normalized = value.strip().rstrip("/")
+        for scheme in ("https://", "http://"):
+            if normalized.startswith(scheme):
+                normalized = normalized[len(scheme) :].rstrip("/")
+        if not normalized:
+            raise ValueError("must not be empty")
+        return normalized
+
+    @field_validator("user", "token_name")
+    @classmethod
+    def _not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("must not be empty")
+        return value.strip()
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         extra="forbid",
@@ -198,6 +240,17 @@ class Settings(BaseSettings):
     create: CreateSettings = Field(default_factory=CreateSettings)
     vmid: VmidSettings = Field(default_factory=VmidSettings)
     cloudinit: CloudInitSettings = Field(default_factory=CloudInitSettings)
+    pve: dict[str, PveHostSettings] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _check_pve_hosts(self) -> "Settings":
+        for name in self.pve:
+            if not PVE_HOST_NAME_RE.fullmatch(name):
+                raise ValueError(
+                    f"invalid PVE host name {name!r} "
+                    "(use letters, digits, underscores or dashes)"
+                )
+        return self
 
     @model_validator(mode="after")
     def _check_distro_overrides(self) -> "Settings":
@@ -251,6 +304,16 @@ class Settings(BaseSettings):
             for key, value in override.model_dump().items()
             if value is not None
         }
+
+    def pve_host(self, name: str) -> PveHostSettings:
+        """Return the configured remote Proxmox VE host by name."""
+        host = self.pve.get(name)
+        if host is None:
+            configured = ", ".join(sorted(self.pve)) or "none configured"
+            raise QmTemplateError(
+                f"unknown PVE host {name!r} in [pve.*] (configured: {configured})"
+            )
+        return host
 
     @property
     def images_dir(self) -> Path:

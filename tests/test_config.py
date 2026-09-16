@@ -34,6 +34,7 @@ def test_builtin_defaults(tmp_path):
     assert settings.cloudinit.password == "debian"
     assert settings.cloudinit.sshkeys == ()
     assert settings.cloudinit.sshkeys_files == ()
+    assert settings.pve == {}
 
 
 def test_default_config_path():
@@ -353,3 +354,140 @@ def test_default_images_dir():
 def test_ssh_key_fingerprint_ignores_short_lines():
     assert ssh_key_fingerprint("ssh-ed25519") is None
     assert ssh_key_fingerprint("") is None
+
+
+def test_pve_host_settings_parse():
+    settings = parse_settings(
+        {
+            "pve": {
+                "home": {
+                    "host": "https://pve.home.arpa/",
+                    "node": "pve1",
+                    "user": "qm-template@pve",
+                    "token_name": "automation",
+                    "token_secret": "s3cret",
+                    "import_storage": "local",
+                    "create": {"storage": "local-zfs"},
+                    "vmid": {"start": 9100},
+                    "cloudinit": {"user": "admin"},
+                }
+            }
+        },
+        source=Path("config.toml"),
+    )
+    host = settings.pve_host("home")
+    assert host.host == "pve.home.arpa"
+    assert host.node == "pve1"
+    assert host.port == 8006
+    assert host.verify_ssl is True
+    assert host.task_timeout == 3600
+    assert host.import_storage == "local"
+    assert host.token_secret.get_secret_value() == "s3cret"
+    assert host.create is not None and host.create.storage == "local-zfs"
+    assert host.vmid is not None and host.vmid.start == 9100
+    assert host.cloudinit is not None and host.cloudinit.user == "admin"
+
+
+def test_pve_host_requires_connection_fields():
+    with pytest.raises(QmTemplateError):
+        parse_settings(
+            {"pve": {"home": {"host": "pve.lan"}}}, source=Path("config.toml")
+        )
+
+
+def test_pve_host_rejects_unknown_keys():
+    with pytest.raises(QmTemplateError, match=r"pve\.home\.typo"):
+        parse_settings(
+            {
+                "pve": {
+                    "home": {
+                        "host": "pve.lan",
+                        "user": "u@pve",
+                        "token_name": "t",
+                        "token_secret": "s",
+                        "typo": 1,
+                    }
+                }
+            },
+            source=Path("config.toml"),
+        )
+
+
+def test_pve_host_name_is_validated():
+    with pytest.raises(QmTemplateError, match="invalid PVE host name"):
+        parse_settings(
+            {
+                "pve": {
+                    "bad name": {
+                        "host": "pve.lan",
+                        "user": "u@pve",
+                        "token_name": "t",
+                        "token_secret": "s",
+                    }
+                }
+            },
+            source=Path("config.toml"),
+        )
+
+
+def test_pve_host_rejects_blank_values():
+    base = {"user": "u@pve", "token_name": "t", "token_secret": "s"}
+    with pytest.raises(QmTemplateError):
+        parse_settings(
+            {"pve": {"home": {"host": " / ", **base}}}, source=Path("config.toml")
+        )
+    with pytest.raises(QmTemplateError):
+        parse_settings(
+            {"pve": {"home": {"host": "pve.lan", **base, "user": " "}}},
+            source=Path("config.toml"),
+        )
+
+
+def test_unknown_pve_host_lookup_raises():
+    settings = parse_settings({}, source=Path("config.toml"))
+    with pytest.raises(QmTemplateError, match="unknown PVE host"):
+        settings.pve_host("missing")
+
+
+def test_pve_secret_can_come_from_the_environment(monkeypatch, tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text(
+        '[pve.home]\nhost = "pve.lan"\nuser = "u@pve"\n'
+        'token_name = "t"\ntoken_secret = "old"\n'
+    )
+    monkeypatch.setenv("QM_TEMPLATE_PVE__HOME__TOKEN_SECRET", "new")
+    settings = load_settings(path, explicit=True)
+    assert settings.pve["home"].token_secret.get_secret_value() == "new"
+
+
+def test_pve_host_invalid_types_raise():
+    with pytest.raises(QmTemplateError):
+        parse_settings(
+            {
+                "pve": {
+                    "home": {
+                        "host": "pve.lan",
+                        "user": "u@pve",
+                        "token_name": "t",
+                        "token_secret": "s",
+                        "port": "many",
+                    }
+                }
+            },
+            source=Path("config.toml"),
+        )
+    with pytest.raises(QmTemplateError):
+        parse_settings(
+            {
+                "pve": {
+                    "home": {
+                        "host": "pve.lan",
+                        "user": "u@pve",
+                        "token_name": "t",
+                        "token_secret": "s",
+                        "create": {"cores": 0},
+                    }
+                }
+            },
+            source=Path("config.toml"),
+        )
