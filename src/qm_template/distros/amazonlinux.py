@@ -12,7 +12,11 @@ class AmazonLinux(Distro):
     name = "amazonlinux"
     description = "Amazon Linux 2023"
     options = {
-        "release": Option("latest", note="latest or a version like 2023.12.20260914.0"),
+        "tag": Option(
+            "",
+            pattern=VERSION,
+            note="version like 2023.12.20260914.0; the newest is used when omitted",
+        ),
         "arch": Option("x86_64", ("x86_64", "aarch64")),
         "base_url": Option(
             "https://cdn.amazonlinux.com/al2023/os-images",
@@ -22,17 +26,12 @@ class AmazonLinux(Distro):
     }
 
     def resolve(self, params: Mapping[str, str]) -> RemoteImage:
-        release = params["release"]
         arch = params["arch"]
         arch_dir = ARCH_DIRS[arch]
-        directory = (
-            f"{params['base_url']}/latest/{arch_dir}/"
-            if release == "latest"
-            else f"{params['base_url']}/{release}/{arch_dir}/"
-        )
+        directory = f"{params['base_url']}/{params.get('tag') or 'latest'}/{arch_dir}/"
         filename = self.newest_in(
             directory,
-            rf"al2023-kvm-{VERSION}-kernel-[\d.]+"
+            rf"al2023-kvm-({VERSION})-kernel-[\d.]+"
             rf"-{re.escape(ARCH_TOKENS[arch])}\.xfs\.gpt\.qcow2",
         )
         match = re.fullmatch(rf"al2023-kvm-({VERSION})-kernel-.*", filename)

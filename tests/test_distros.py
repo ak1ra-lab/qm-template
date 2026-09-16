@@ -231,14 +231,14 @@ def test_archlinux_accepts_explicit_build(monkeypatch):
 
     monkeypatch.setattr("qm_template.distros.base.list_directory", unexpected_listing)
     distro = ArchLinux()
-    image = distro.resolve(distro.merge({}, {"release": "v20260901.583572"}))
+    image = distro.resolve(distro.merge({}, {"tag": "v20260901.583572"}))
     assert image.local_path == Path(
         "archlinux/v20260901.583572/Arch-Linux-x86_64-cloudimg.qcow2"
     )
 
 
-def test_archlinux_rejects_basic_variant():
-    with pytest.raises(QmTemplateError, match="choose from"):
+def test_archlinux_rejects_unknown_variant():
+    with pytest.raises(QmTemplateError, match="unknown parameter 'variant'"):
         DISTROS["archlinux"].merge({}, {"variant": "basic"})
 
 
@@ -517,7 +517,7 @@ def test_amazonlinux_accepts_an_explicit_version(monkeypatch):
 
     monkeypatch.setattr("qm_template.distros.base.list_directory", listing)
     distro = AmazonLinux()
-    image = distro.resolve(distro.merge({}, {"release": "2023.12.20260914.0"}))
+    image = distro.resolve(distro.merge({}, {"tag": "2023.12.20260914.0"}))
     assert seen == [
         "https://cdn.amazonlinux.com/al2023/os-images/2023.12.20260914.0/kvm/"
     ]

@@ -181,7 +181,6 @@ class CentOSStream(Distro):
     description = "CentOS Stream"
     options = {
         "release": Option("10", pattern=r"\d+", note="major version, e.g. 9, 10"),
-        "variant": Option("GenericCloud", ("GenericCloud",)),
         "arch": Option("x86_64", ("x86_64", "aarch64")),
         "base_url": Option(
             "https://cloud.centos.org/centos",
@@ -192,12 +191,11 @@ class CentOSStream(Distro):
 
     def resolve(self, params: Mapping[str, str]) -> RemoteImage:
         release = params["release"]
-        variant = params["variant"]
         arch = params["arch"]
         base = f"{params['base_url']}/{release}-stream/{arch}/images/"
         filename = self.newest_in(
             base,
-            rf"CentOS-Stream-{re.escape(variant)}-{re.escape(arch)}"
+            rf"CentOS-Stream-GenericCloud-{re.escape(arch)}"
             rf"-{re.escape(release)}-\d{{8}}\.\d+\.{re.escape(arch)}\.qcow2",
         )
         return RemoteImage(

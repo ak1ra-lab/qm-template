@@ -14,8 +14,11 @@ class ArchLinux(Distro):
     name = "archlinux"
     description = "Arch Linux"
     options = {
-        "release": Option("latest", note="latest or a build, e.g. v20260901.583572"),
-        "variant": Option("cloudimg", ("cloudimg",)),
+        "tag": Option(
+            "",
+            pattern=r"v\d{8}\.\d+",
+            note="build like v20260901.583572; the newest is used when omitted",
+        ),
         "arch": Option("x86_64", ("x86_64",)),
         "base_url": Option(
             "https://geo.mirror.pkgbuild.com/images",
@@ -25,17 +28,13 @@ class ArchLinux(Distro):
     }
 
     def resolve(self, params: Mapping[str, str]) -> RemoteImage:
-        release = params["release"]
-        variant = params["variant"]
-        arch = params["arch"]
         base_url = params["base_url"]
-        if release == "latest":
-            release = self.newest_in(f"{base_url}/", r"v\d{8}\.\d+")
-        base = f"{base_url}/{release}/"
-        filename = f"Arch-Linux-{arch}-{variant}.qcow2"
+        build = params.get("tag") or self.newest_in(base_url + "/", r"v\d{8}\.\d+")
+        base = f"{base_url}/{build}/"
+        filename = f"Arch-Linux-{params['arch']}-cloudimg.qcow2"
         return RemoteImage(
             distro=self.name,
-            release=release,
+            release=build,
             filename=filename,
             url=f"{base}{filename}",
             checksum_url=f"{base}{filename}.SHA256",
