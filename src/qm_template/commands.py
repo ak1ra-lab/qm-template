@@ -33,12 +33,11 @@ from qm_template.log import log
 from qm_template.prepare import (
     DEFAULT_FORMAT,
     DISK_FORMATS,
-    GENISOIMAGE,
     QEMU_IMG,
     convert_command,
     require_tool,
     run_tool,
-    seed_iso_command,
+    select_iso_builder,
 )
 from qm_template.pve import (
     MIN_VM_ID,
@@ -331,13 +330,14 @@ def run_prepare(args: argparse.Namespace, settings: Settings) -> None:
     }
     convert = convert_command(image, disk, args.format)
     convert_needed = args.force or not disk.exists()
+    builder = select_iso_builder(settings.prepare.preferred)
+    seed_command = builder.build_command(seed, [Path(name) for name in seed_files])
     if args.dry_run:
         if convert_needed:
             print(pretty(convert))
-        print(pretty(seed_iso_command(seed, [Path(name) for name in seed_files])))
+        print(pretty(seed_command))
         return
 
-    require_tool(GENISOIMAGE, package="genisoimage")
     if convert_needed:
         require_tool(QEMU_IMG, package="qemu-utils")
         disk.unlink(missing_ok=True)
@@ -351,7 +351,7 @@ def run_prepare(args: argparse.Namespace, settings: Settings) -> None:
             log.info("Wrote %s", disk)
         else:
             log.info("Keeping existing %s", disk)
-        run_tool(seed_iso_command(seed, [staged / name for name in seed_files]))
+        run_tool(builder.build_command(seed, [staged / name for name in seed_files]))
     log.info("Wrote %s", seed)
 
 

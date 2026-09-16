@@ -571,7 +571,9 @@ def test_create_reports_success(
 
 
 def test_prepare_dry_run_prints_commands(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     images = tmp_path / "images"
     images.mkdir()
@@ -579,6 +581,9 @@ def test_prepare_dry_run_prints_commands(
     image.write_bytes(b"")
     config = write_config(
         tmp_path, images, cloudinit='sshkeys = ["ssh-ed25519 AAAA"]\n'
+    )
+    monkeypatch.setattr(
+        "qm_template.prepare.shutil.which", lambda name: f"/usr/bin/{name}"
     )
     assert main(["prepare", "--dry-run", "--config", str(config)]) == 0
     printed = capsys.readouterr().out
@@ -594,7 +599,9 @@ def test_prepare_dry_run_prints_commands(
 
 
 def test_prepare_dry_run_honours_the_format(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     images = tmp_path / "images"
     images.mkdir()
@@ -602,6 +609,9 @@ def test_prepare_dry_run_honours_the_format(
     image.write_bytes(b"")
     config = write_config(
         tmp_path, images, cloudinit='sshkeys = ["ssh-ed25519 AAAA"]\n'
+    )
+    monkeypatch.setattr(
+        "qm_template.prepare.shutil.which", lambda name: f"/usr/bin/{name}"
     )
     assert (
         main(["prepare", "--format", "vmdk", "--dry-run", "--config", str(config)]) == 0
@@ -751,7 +761,9 @@ def test_prepare_force_reconverts_the_disk(
 
 
 def test_prepare_dry_run_skips_conversion_when_the_disk_exists(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     images = tmp_path / "images"
     images.mkdir()
@@ -760,6 +772,9 @@ def test_prepare_dry_run_skips_conversion_when_the_disk_exists(
     image.with_suffix(".vdi").write_bytes(b"")
     config = write_config(
         tmp_path, images, cloudinit='sshkeys = ["ssh-ed25519 AAAA"]\n'
+    )
+    monkeypatch.setattr(
+        "qm_template.prepare.shutil.which", lambda name: f"/usr/bin/{name}"
     )
     assert main(["prepare", "--dry-run", "--config", str(config)]) == 0
     printed = capsys.readouterr().out

@@ -30,6 +30,11 @@ default_distro = "debian"
 # release = "bookworm-backports"
 # base_url = "https://mirror.example.org/debian-cloud"
 
+[prepare]
+# Tool preference order for packing the NoCloud seed ISO; the first available
+# command is used. xorriso is invoked in its mkisofs emulation mode.
+preferred = ["genisoimage", "xorriso", "mkisofs"]
+
 [create]
 # Proxmox storage for the imported disk and the Cloud-Init drive.
 storage = "local-lvm"

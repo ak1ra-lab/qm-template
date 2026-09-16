@@ -110,6 +110,12 @@ class DownloadSettings(BaseModel):
         return value
 
 
+class PrepareSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    preferred: tuple[str, ...] = ("genisoimage", "xorriso", "mkisofs")
+
+
 class DistroOverride(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -201,6 +207,7 @@ class Settings(BaseSettings):
 
     paths: PathsSettings = Field(default_factory=PathsSettings)
     download: DownloadSettings = Field(default_factory=DownloadSettings)
+    prepare: PrepareSettings = Field(default_factory=PrepareSettings)
     distro: dict[str, DistroOverride] = Field(default_factory=dict)
     create: CreateSettings = Field(default_factory=CreateSettings)
     vmid: VmidSettings = Field(default_factory=VmidSettings)
