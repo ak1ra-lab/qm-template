@@ -20,6 +20,7 @@ from qm_template.commands import _complete_pve_names
 from qm_template.config import CloudInitSettings, CreateSettings, PveHostSettings
 from qm_template.errors import QmTemplateError
 from qm_template.pve import VmSpec
+from qm_template.shell import MASK
 
 TASK = "UPID:pve1:00001234:00000000:00000000:qmcreate:9000:root@pam:test"
 
@@ -261,6 +262,24 @@ def test_build_create_params_adds_uefi_and_omits_metadata_by_default():
     assert params["efidisk0"] == "local-zfs:1,pre-enrolled-keys=0"
     for key in ("tags", "pool", "onboot", "description"):
         assert key not in params
+
+
+def test_build_create_params_omits_empty_credentials():
+    params = build_create_params(
+        make_spec(cloudinit=CloudInitSettings(), sshkeys=()),
+        "local:import/x.qcow2",
+    )
+    assert "cipassword" not in params
+    assert "sshkeys" not in params
+
+
+def test_preview_masks_credentials():
+    spec = make_spec(cloudinit=CloudInitSettings(user="admin", password="secret"))
+    preview = make_target(FakeApi()).preview(spec, "local:import/x.qcow2")
+    assert "secret" not in preview
+    assert f"    cipassword={MASK}" in preview
+    assert f"    sshkeys={MASK}" in preview
+    assert "ssh-ed25519" not in preview
 
 
 def test_validate_accepts_a_supported_host(tmp_path: Path):

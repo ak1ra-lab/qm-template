@@ -19,7 +19,8 @@ from qm_template.checksum import (
 from qm_template.cloudinit import (
     meta_data,
     network_config,
-    require_ssh_keys,
+    require_credentials,
+    resolve_user,
     user_data,
 )
 from qm_template.config import (
@@ -341,7 +342,7 @@ def run_create(args: argparse.Namespace, settings: Settings) -> None:
         settings.cloudinit,
         None if host is None else host.cloudinit,
     )
-    sshkeys = require_ssh_keys(cloudinit)
+    sshkeys = require_credentials(cloudinit)
 
     images = find_images(settings.images_dir, args.pattern)
     if len(images) == 1:
@@ -349,6 +350,9 @@ def run_create(args: argparse.Namespace, settings: Settings) -> None:
         log.info("Selected image: %s", image.name)
     else:
         image = choose_image(images, settings.images_dir)
+    cloudinit = cloudinit.model_copy(
+        update={"user": resolve_user(cloudinit.user, image, settings.images_dir)}
+    )
 
     firmware: ResolvedFirmware = (
         create.firmware if create.firmware != "auto" else detect_firmware(image)
@@ -428,6 +432,7 @@ def add_prepare_arguments(parser: argparse.ArgumentParser) -> None:
 
 
 def run_prepare(args: argparse.Namespace, settings: Settings) -> None:
+    require_credentials(settings.cloudinit)
     images = find_images(settings.images_dir, args.pattern)
     if len(images) == 1:
         image = images[0]
@@ -436,7 +441,11 @@ def run_prepare(args: argparse.Namespace, settings: Settings) -> None:
         image = choose_image(images, settings.images_dir)
 
     vm_name = args.vm_name or default_vm_name(image)
-    cloudinit = settings.cloudinit
+    cloudinit = settings.cloudinit.model_copy(
+        update={
+            "user": resolve_user(settings.cloudinit.user, image, settings.images_dir)
+        }
+    )
     disk = image.with_suffix(DISK_FORMATS[args.format])
     if disk == image:
         raise QmTemplateError(

@@ -110,7 +110,14 @@ class Distro(ABC):
 
     name: ClassVar[str]
     description: ClassVar[str]
+    #: Cloud-Init login name of the image; falls back to the distro name.
+    default_user: ClassVar[str] = ""
     options: ClassVar[Mapping[str, Option]] = {}
+
+    @property
+    def cloud_user(self) -> str:
+        """Return the login name Cloud-Init should use for this distro."""
+        return self.default_user or self.name
 
     @property
     def defaults(self) -> dict[str, str]:

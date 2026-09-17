@@ -13,6 +13,7 @@ ARCH_BOXES_KEY_URL = (
 class ArchLinux(Distro):
     name = "archlinux"
     description = "Arch Linux"
+    default_user = "arch"
     options = {
         "tag": Option(
             "",

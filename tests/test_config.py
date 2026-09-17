@@ -30,8 +30,8 @@ def test_builtin_defaults(tmp_path):
     assert settings.create.cpu == "host"
     assert settings.vmid.start == 9000
     assert settings.vmid.step == 1
-    assert settings.cloudinit.user == "debian"
-    assert settings.cloudinit.password == "debian"
+    assert settings.cloudinit.user == ""
+    assert settings.cloudinit.password.get_secret_value() == ""
     assert settings.cloudinit.sshkeys == ()
     assert settings.cloudinit.sshkeys_files == ()
     assert settings.pve == {}
@@ -86,7 +86,7 @@ def test_parse_overrides():
     assert settings.vmid.start == 9000
     assert settings.vmid.step == 10
     assert settings.cloudinit.user == "admin"
-    assert settings.cloudinit.password == "secret"
+    assert settings.cloudinit.password.get_secret_value() == "secret"
     assert settings.cloudinit.sshkeys == ("ssh-ed25519 AAAA",)
     assert settings.cloudinit.sshkeys_files == (
         "~/.ssh/id_ed25519.pub",

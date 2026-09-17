@@ -6,6 +6,7 @@ from qm_template.errors import QmTemplateError
 from qm_template.log import log
 
 CommandGroups = Sequence[Sequence[str]]
+MASK = "********"
 
 
 def flatten(groups: CommandGroups) -> list[str]:
@@ -22,10 +23,17 @@ def pretty(groups: CommandGroups) -> str:
 
 
 def run(
-    argv: Sequence[str], *, capture: bool = False
+    argv: Sequence[str],
+    *,
+    capture: bool = False,
+    secrets: Sequence[str] = (),
 ) -> subprocess.CompletedProcess[str]:
-    """Run an external command, reporting failures to start it as QmTemplateError."""
-    log.debug("Running: %s", shlex.join(argv))
+    """Run an external command, reporting failures to start it as QmTemplateError.
+
+    Values listed in *secrets* are masked in the debug log.
+    """
+    display = [MASK if word in secrets else word for word in argv] if secrets else argv
+    log.debug("Running: %s", shlex.join(display))
     try:
         return subprocess.run(argv, capture_output=capture, text=True)
     except OSError as exc:

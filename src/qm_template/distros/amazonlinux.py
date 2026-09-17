@@ -11,6 +11,7 @@ ARCH_TOKENS = {"x86_64": "x86_64", "aarch64": "arm64"}
 class AmazonLinux(Distro):
     name = "amazonlinux"
     description = "Amazon Linux 2023"
+    default_user = "ec2-user"
     options = {
         "tag": Option(
             "",

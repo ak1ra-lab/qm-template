@@ -11,10 +11,11 @@ from qm_template.cloudinit import sshkeys_file
 from qm_template.config import CloudInitSettings, CreateSettings
 from qm_template.errors import QmTemplateError, UserCancelled
 from qm_template.log import log
-from qm_template.shell import CommandGroups, flatten, pretty, run
+from qm_template.shell import MASK, CommandGroups, flatten, pretty, run
 
 PVE_VM_DIR = Path("/etc/pve/qemu-server")
 MIN_VM_ID = 100
+SECRET_FLAGS = frozenset({"--cipassword"})
 
 
 def prompt(message: str) -> str:
@@ -167,6 +168,12 @@ def build_qm_create(spec: VmSpec, source: str, sshkeys: Path) -> CommandGroups:
         metadata_args.append(["--onboot", "1"])
     if settings.description:
         metadata_args.append(["--description", settings.description])
+    credential_args: CommandGroups = []
+    password = spec.cloudinit.password.get_secret_value()
+    if password:
+        credential_args.append(["--cipassword", password])
+    if spec.sshkeys:
+        credential_args.append(["--sshkeys", str(sshkeys)])
     return [
         ["qm", "create", str(spec.vm_id)],
         ["--name", spec.name],
@@ -189,9 +196,18 @@ def build_qm_create(spec: VmSpec, source: str, sshkeys: Path) -> CommandGroups:
         ["--ipconfig0", "ip=dhcp"],
         ["--ciupgrade", "0"],
         ["--ciuser", spec.cloudinit.user],
-        ["--cipassword", spec.cloudinit.password],
-        ["--sshkeys", str(sshkeys)],
+        *credential_args,
         ["--template", "1"],
+    ]
+
+
+def mask_secrets(groups: CommandGroups) -> CommandGroups:
+    """Return a copy of a command with secret option values masked."""
+    return [
+        [group[0], MASK, *group[2:]]
+        if len(group) > 1 and group[0] in SECRET_FLAGS
+        else list(group)
+        for group in groups
     ]
 
 
@@ -203,7 +219,10 @@ def run_qm(command: CommandGroups) -> None:
     if os.geteuid() != 0:
         log.warning("qm usually requires root privileges")
     label = " ".join(argv[:2])
-    result = run([qm, *argv[1:]])
+    secrets = [
+        argv[index + 1] for index, word in enumerate(argv[:-1]) if word in SECRET_FLAGS
+    ]
+    result = run([qm, *argv[1:]], secrets=secrets)
     if result.returncode != 0:
         raise QmTemplateError(f"{label} failed with exit status {result.returncode}")
 
@@ -229,7 +248,7 @@ class LocalPveTarget:
 
     def preview(self, spec: VmSpec, source: str) -> str:
         with sshkeys_file(spec.sshkeys) as keys:
-            return pretty(build_qm_create(spec, source, keys))
+            return pretty(mask_secrets(build_qm_create(spec, source, keys)))
 
     def create_template(self, spec: VmSpec, source: str) -> None:
         with sshkeys_file(spec.sshkeys) as keys:

@@ -161,8 +161,8 @@ class VmidSettings(BaseModel):
 class CloudInitSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    user: str = "debian"
-    password: str = "debian"
+    user: str = ""
+    password: SecretStr = SecretStr("")
     shell: str = "/bin/bash"
     sshkeys: tuple[str, ...] = ()
     sshkeys_files: tuple[str, ...] = ()

@@ -70,20 +70,24 @@ start = 9000
 step = 1
 
 [cloudinit]
-# User created (or updated) by Cloud-Init on first boot.
-user = "debian"
-# Kept as a fixed default so the console rescue password stays predictable;
-# change it here to use something else.
-password = "debian"
+# User created (or updated) by Cloud-Init on first boot. When empty, the
+# distro's usual login name is used (e.g. "debian" for Debian, "freebsd" for
+# FreeBSD), or "admin" when the image is not stored under a known distro
+# directory.
+user = ""
+# Login password for that user. Empty means no password login: leave it empty
+# when SSH keys are configured. The value is masked in --dry-run output and
+# debug logs.
+password = ""
 # Login shell for the user created by the local seed ISO (`prepare`); set it to
 # "" to keep the image default, or e.g. "/bin/ash" on Alpine Linux.
 shell = "/bin/bash"
 
 # SSH public keys injected via Cloud-Init. Inline keys in sshkeys and the
 # contents of every sshkeys_files entry are merged and deduplicated by SSH key
-# fingerprint; `create` requires at least one key, while `prepare` falls back
-# to password login when none is configured. Each inline entry must look like
-# an SSH public key. No key file is read unless configured here.
+# fingerprint; `create` and `prepare` require at least one key or a password.
+# Each inline entry must look like an SSH public key. No key file is read
+# unless configured here.
 sshkeys = [
     # "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... user@example.com",
 ]
@@ -114,4 +118,4 @@ sshkeys_files = [
 # # [pve.home.create]
 # # storage = "local-lvm"
 # # [pve.home.cloudinit]
-# # user = "debian"
+# # user = "admin"

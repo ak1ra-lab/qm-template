@@ -1,4 +1,5 @@
 import io
+import logging
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -14,13 +15,14 @@ from qm_template.pve import (
     choose_image,
     default_vm_name,
     detect_firmware,
+    mask_secrets,
     next_vm_id,
     prompt,
     run_qm,
     used_vm_ids,
     vm_config_path,
 )
-from qm_template.shell import flatten
+from qm_template.shell import MASK, flatten
 
 
 def make_spec(**overrides) -> VmSpec:
@@ -79,10 +81,32 @@ def test_build_qm_create_is_single_complete_command():
     assert ["--cpu", "cputype=x86-64-v2-AES"] == argv[argv.index("--cpu") :][:2]
     assert "local-zfs:0,import-from=/images/x.qcow2" in argv
     assert "local-zfs:cloudinit" in argv
-    assert "--ciuser" in argv
-    assert "--sshkeys" in argv
+    assert ["--ciuser", "admin"] == argv[argv.index("--ciuser") :][:2]
+    assert ["--cipassword", "secret"] == argv[argv.index("--cipassword") :][:2]
+    assert ["--sshkeys", "/keys.pub"] == argv[argv.index("--sshkeys") :][:2]
     assert "--bios" not in argv
     assert "--efidisk0" not in argv
+
+
+def test_build_qm_create_omits_empty_credentials():
+    spec = make_spec(
+        cloudinit=CloudInitSettings(user="admin"),
+        sshkeys=(),
+    )
+    argv = flatten(build_qm_create(spec, "/images/x.qcow2", Path("/keys.pub")))
+    assert "--cipassword" not in argv
+    assert "--sshkeys" not in argv
+
+
+def test_mask_secrets_hides_the_password():
+    command = [["qm", "create", "9000"], ["--cipassword", "secret"], ["--name", "vm"]]
+    masked = mask_secrets(command)
+    assert masked == [
+        ["qm", "create", "9000"],
+        ["--cipassword", MASK],
+        ["--name", "vm"],
+    ]
+    assert "secret" not in flatten(masked)
 
 
 def test_detect_firmware_reads_the_image_name():
@@ -283,3 +307,15 @@ def test_run_qm_succeeds(monkeypatch):
         lambda *_args, **_kwargs: SimpleNamespace(returncode=0),
     )
     run_qm([["qm", "create", "9000"]])
+
+
+def test_run_qm_masks_the_password_in_debug_logs(monkeypatch, caplog):
+    monkeypatch.setattr("qm_template.pve.shutil.which", lambda _name: "/usr/bin/qm")
+    monkeypatch.setattr(
+        "qm_template.shell.subprocess.run",
+        lambda argv, **_kwargs: SimpleNamespace(returncode=0),
+    )
+    with caplog.at_level(logging.DEBUG, logger="qm-template"):
+        run_qm([["qm", "create", "9000"], ["--cipassword", "secret"]])
+    assert "secret" not in caplog.text
+    assert MASK in caplog.text

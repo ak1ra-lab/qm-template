@@ -214,6 +214,64 @@ def test_create_dry_run_prints_pretty_command(
     assert output.rstrip().endswith("--template 1")
 
 
+def test_create_dry_run_derives_the_user_from_the_distro(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    images = tmp_path / "images"
+    (images / "debian" / "13").mkdir(parents=True)
+    (images / "debian" / "13" / "debian-13-genericcloud-amd64.qcow2").write_bytes(b"")
+    config = write_config(
+        tmp_path, images, cloudinit='sshkeys = ["ssh-ed25519 AAAA"]\n'
+    )
+    monkeypatch.setattr(
+        "qm_template.pve.vm_config_path", lambda vm_id: tmp_path / f"{vm_id}.conf"
+    )
+    monkeypatch.setattr("qm_template.pve.check_storage", lambda _storage: None)
+    assert (
+        main(["create", "--dry-run", "--vm-id", "9000", "--config", str(config)]) == 0
+    )
+    output = capsys.readouterr().out
+    assert "    --ciuser debian \\\n" in output
+    assert "--cipassword" not in output
+
+
+def test_create_dry_run_masks_the_password(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    images = tmp_path / "images"
+    images.mkdir()
+    (images / "debian-13-genericcloud-amd64.qcow2").write_bytes(b"")
+    config = write_config(tmp_path, images, cloudinit='password = "secret"\n')
+    monkeypatch.setattr(
+        "qm_template.pve.vm_config_path", lambda vm_id: tmp_path / f"{vm_id}.conf"
+    )
+    monkeypatch.setattr("qm_template.pve.check_storage", lambda _storage: None)
+    assert (
+        main(["create", "--dry-run", "--vm-id", "9000", "--config", str(config)]) == 0
+    )
+    output = capsys.readouterr().out
+    assert "    --cipassword '********' \\\n" in output
+    assert "secret" not in output
+    assert "--sshkeys" not in output
+
+
+def test_create_requires_a_login_method(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    images = tmp_path / "images"
+    images.mkdir()
+    (images / "debian-13-genericcloud-amd64.qcow2").write_bytes(b"")
+    config = write_config(tmp_path, images)
+    assert (
+        main(["create", "--dry-run", "--vm-id", "9000", "--config", str(config)]) == 1
+    )
+    assert "no login method" in capsys.readouterr().err
+
+
 def test_create_dry_run_auto_selects_uefi_from_image_name(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -728,7 +786,18 @@ def test_prepare_rejects_a_format_that_overwrites_the_source(
     assert image.read_bytes() == b"content"
 
 
-def test_prepare_without_ssh_keys_uses_password_login(
+def test_prepare_requires_a_login_method(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    images = tmp_path / "images"
+    images.mkdir()
+    (images / "debian-13-genericcloud-amd64.qcow2").write_bytes(b"")
+    config = write_config(tmp_path, images)
+    assert main(["prepare", "--config", str(config)]) == 1
+    assert "no login method" in capsys.readouterr().err
+
+
+def test_prepare_with_a_password_uses_password_login(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
@@ -737,7 +806,7 @@ def test_prepare_without_ssh_keys_uses_password_login(
     images.mkdir()
     image = images / "debian-13-genericcloud-amd64.qcow2"
     image.write_bytes(b"")
-    config = write_config(tmp_path, images)
+    config = write_config(tmp_path, images, cloudinit='password = "secret"\n')
     staged: dict[str, str] = {}
 
     def fake_run(argv):
@@ -751,7 +820,8 @@ def test_prepare_without_ssh_keys_uses_password_login(
     monkeypatch.setattr("qm_template.prepare.run", fake_run)
     assert main(["prepare", "--config", str(config)]) == 0
     assert "ssh_authorized_keys" not in staged["user-data"]
-    assert "No SSH keys configured" in capsys.readouterr().err
+    assert 'password: "secret"' in staged["user-data"]
+    assert '- name: "admin"' in staged["user-data"]
 
 
 def test_prepare_runs_tools_with_staged_seed_files(

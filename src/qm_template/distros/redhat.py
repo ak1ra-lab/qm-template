@@ -179,6 +179,7 @@ class Fedora(Distro):
 class CentOSStream(Distro):
     name = "centos"
     description = "CentOS Stream"
+    default_user = "cloud-user"
     options = {
         "release": Option("10", pattern=r"\d+", note="major version, e.g. 9, 10"),
         "arch": Option("x86_64", ("x86_64", "aarch64")),

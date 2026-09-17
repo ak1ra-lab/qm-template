@@ -1,10 +1,11 @@
+import logging
 import subprocess
 from types import SimpleNamespace
 
 import pytest
 
 from qm_template.errors import QmTemplateError
-from qm_template.shell import flatten, pretty, run
+from qm_template.shell import MASK, flatten, pretty, run
 
 
 def test_flatten_joins_groups_in_order():
@@ -49,6 +50,17 @@ def test_run_forwards_capture(monkeypatch):
     monkeypatch.setattr("qm_template.shell.subprocess.run", fake_run)
     run(["qm", "list"], capture=True)
     assert captured["capture_output"] is True
+
+
+def test_run_masks_secrets_in_the_debug_log(monkeypatch, caplog):
+    monkeypatch.setattr(
+        "qm_template.shell.subprocess.run",
+        lambda argv, **_kwargs: subprocess.CompletedProcess(argv, 0),
+    )
+    with caplog.at_level(logging.DEBUG, logger="qm-template"):
+        run(["qm", "create", "--cipassword", "hunter2"], secrets=["hunter2"])
+    assert "hunter2" not in caplog.text
+    assert MASK in caplog.text
 
 
 def test_run_reports_a_missing_executable(monkeypatch):

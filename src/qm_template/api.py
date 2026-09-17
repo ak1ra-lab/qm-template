@@ -16,10 +16,12 @@ from qm_template.config import CreateSettings, PveHostSettings
 from qm_template.errors import QmTemplateError
 from qm_template.log import log
 from qm_template.pve import VmSpec
+from qm_template.shell import MASK
 
 MIN_VERSION = (8, 4)
 QCOW2_MAGIC = b"QFI\xfb"
 MAX_NAME_LENGTH = 240
+SECRET_PARAMS = frozenset({"cipassword", "sshkeys"})
 _VERSION_RE = re.compile(r"\d+")
 _UNSAFE_NAME_RE = re.compile(r"[^A-Za-z0-9._+=-]+")
 T = TypeVar("T")
@@ -78,10 +80,13 @@ def build_create_params(spec: VmSpec, source: str) -> dict[str, Any]:
         "ipconfig0": "ip=dhcp",
         "ciupgrade": 0,
         "ciuser": spec.cloudinit.user,
-        "cipassword": spec.cloudinit.password,
-        "sshkeys": quote("\n".join(spec.sshkeys), safe=""),
         "template": 1,
     }
+    password = spec.cloudinit.password.get_secret_value()
+    if password:
+        params["cipassword"] = password
+    if spec.sshkeys:
+        params["sshkeys"] = quote("\n".join(spec.sshkeys), safe="")
     if create.tags:
         params["tags"] = ";".join(create.tags)
     if create.pool:
@@ -194,7 +199,7 @@ class ApiPveTarget:
             f"POST /api2/json/nodes/{self.node}/qemu",
         ]
         lines.extend(
-            f"    {key}={value}"
+            f"    {key}={MASK if key in SECRET_PARAMS else value}"
             for key, value in build_create_params(spec, source).items()
         )
         return "\n".join(lines)

@@ -547,3 +547,19 @@ def test_freebsd_fs_is_an_independent_axis():
     assert image.filename == "FreeBSD-15.1-RELEASE-amd64-BASIC-CLOUDINIT-zfs.qcow2.xz"
     with pytest.raises(QmTemplateError, match="unknown parameter 'variant'"):
         distro.merge({}, {"variant": "base"})
+
+
+def test_cloud_user_defaults_to_the_distro_or_a_declared_login():
+    assert {name: distro.cloud_user for name, distro in DISTROS.items()} == {
+        "debian": "debian",
+        "ubuntu": "ubuntu",
+        "rocky": "rocky",
+        "almalinux": "almalinux",
+        "fedora": "fedora",
+        "centos": "cloud-user",
+        "alpine": "alpine",
+        "opensuse": "opensuse",
+        "archlinux": "arch",
+        "freebsd": "freebsd",
+        "amazonlinux": "ec2-user",
+    }

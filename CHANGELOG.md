@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `cloudinit.user` defaults to empty: the Cloud-Init login name is derived
+  from the image's distro (Debian stays `debian`, FreeBSD becomes `freebsd`,
+  Amazon Linux `ec2-user`, ...) and falls back to `admin` when the image is
+  not stored under a known distro directory.
+- `cloudinit.password` defaults to empty: no password login is configured
+  unless one is set. `create` and `prepare` now both require at least one SSH
+  key or a password, and unset `--cipassword`/`--sshkeys` options are omitted
+  from the `qm create` command and the API request.
+
+### Security
+
+- Passwords and SSH public keys are masked as `********` in `--dry-run`
+  previews, and passwords are masked in debug logs as well.
+
 ## [0.5.0] - 2026-09-16
 
 ### Added
