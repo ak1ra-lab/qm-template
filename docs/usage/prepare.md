@@ -30,8 +30,8 @@ the `.vdi` as a SATA hard disk and the seed ISO as a CD-ROM. Use the
 `generic`/`genericcloud` image variants: Debian's `nocloud` variant does not
 run Cloud-Init.
 
-SSH keys are optional for `prepare`: without them a warning is logged and the
-seed only enables password login (`create` still requires keys). An existing
+Like `create`, `prepare` requires a login method: at least one SSH key or a
+password. With only a password, the seed enables password login. An existing
 guest disk is kept and only the seed ISO is rebuilt, since converting is
 expensive and the seed derives from the `[cloudinit]`
 [configuration](../configuration.md#settings); pass `--force`/`-f` to convert

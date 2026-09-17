@@ -26,7 +26,7 @@ qm-template prepare --dry-run debian-13
 `.vdi` 挂为 SATA 硬盘、把 seed ISO 挂为 CD-ROM 即可。请使用
 `generic`/`genericcloud` 变体：Debian 的 `nocloud` 变体不运行 Cloud-Init。
 
-`prepare` 不强制要求 SSH 公钥：未配置时会记录警告，seed 仅启用密码登录
-（`create` 仍然要求至少一个公钥）。已存在的客户机磁盘会保留，只重建 seed ISO
+与 `create` 相同，`prepare` 也要求至少一种登录方式：一个 SSH 公钥或密码。只配置
+密码时 seed 启用密码登录。已存在的客户机磁盘会保留，只重建 seed ISO
 （转换开销大、而 seed 由 `[cloudinit]` [配置](../configuration.md)决定）；需要重新
 转换时传入 `--force`/`-f`。

@@ -47,10 +47,15 @@ qm create 9000 \
     --ipconfig0 ip=dhcp \
     --ciupgrade 0 \
     --ciuser debian \
-    --cipassword debian \
+    --cipassword '********' \
     --sshkeys /tmp/qm-template-sshkeys-XXXX.pub \
     --template 1
 ```
+
+The login name is `cloudinit.user`, or the distro's usual user when it is
+empty (`debian` for the image above); `--cipassword` is omitted when no
+password is configured and `--sshkeys` when no keys are. Secrets are masked in
+the preview, so run the command as printed only after replacing the masks.
 
 When `--vm-id` is omitted, the IDs in use are collected from `qm list`
 combined with `/etc/pve/qemu-server/*.conf` and the first free ID at or after
@@ -83,8 +88,8 @@ and the format is detected from the file itself, so Ubuntu's `.img` images are
 accepted. VM IDs come from the cluster (`GET /cluster/nextid`), and
 `vmid.start`/`vmid.step` still apply. When creation fails, the incomplete VM is
 removed again. `--dry-run` prints the upload and `POST
-/api2/json/nodes/<node>/qemu` requests (the password stays visible, like the
-local `qm create` command). The selected host can override the global
+/api2/json/nodes/<node>/qemu` requests with passwords and SSH keys masked,
+like the local `qm create` command. The selected host can override the global
 `[create]`, `[vmid]` and `[cloudinit]` settings; see
 [Configuration](../configuration.md#remote-proxmox-ve-hosts).
 

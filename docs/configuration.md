@@ -29,13 +29,20 @@ checksums and images are verified with `gpg`; set
 gnupg is not installed. `prepare.preferred` orders the ISO builders and
 defaults to `genisoimage`, `xorriso`, `mkisofs`.
 
-`cloudinit.user`/`password` configure the Cloud-Init user, and
-`cloudinit.sshkeys`/`sshkeys_files` list inline SSH public keys and key files
-whose contents are merged and deduplicated by key fingerprint; `create`
-requires at least one key, while `prepare` falls back to password login when
-none is configured. `cloudinit.shell` sets the login shell of the user created
-by the local seed ISO (`prepare`); set it to `""` to keep the image's default
-shell, or to `/bin/ash` on Alpine Linux.
+`cloudinit.user` is the Cloud-Init login name; when empty the distro's usual
+name is used (`debian`, `freebsd`, `ec2-user` for Amazon Linux, ...) and
+`admin` is used when the image is not stored under a known distro directory.
+`cloudinit.password` is optional: an empty password means no password login,
+so SSH keys are required in that case. `cloudinit.sshkeys`/`sshkeys_files`
+list inline SSH public keys and key files whose contents are merged and
+deduplicated by key fingerprint; `create` and `prepare` require at least one
+key or a password. The password is masked in `--dry-run` output and debug
+logs. `cloudinit.shell` sets the login shell of the user created by the local
+seed ISO (`prepare`); set it to `""` to keep the image's default shell, or to
+`/bin/ash` on Alpine Linux. Cloud-Init itself can configure several users in
+`user-data`, but Proxmox VE's managed Cloud-Init only exposes a single
+`ciuser`/`cipassword` (multiple users would need custom `cicustom` snippets),
+so `[cloudinit]` intentionally describes one user.
 
 `create.storage` is the Proxmox storage for the imported disk and the
 Cloud-Init drive. `create.cpu` sets the CPU type passed to `qm` as

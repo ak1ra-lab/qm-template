@@ -25,11 +25,17 @@
 `prepare.preferred` 指定 ISO 打包工具优先级，默认为 `genisoimage`、`xorriso`、
 `mkisofs`。
 
-`cloudinit.user`/`password` 配置 Cloud-Init 用户，`cloudinit.sshkeys` 以内联列表
-提供注入的 SSH 公钥，`cloudinit.sshkeys_files` 指向公钥文件列表，两者的内容会按
-SSH 指纹合并去重；`create` 至少需要一个公钥，`prepare` 在未配置公钥时会退化为仅
-密码登录。`cloudinit.shell` 设置本地 seed ISO（`prepare`）创建用户的登录 shell；
-设为 `""` 则保留镜像默认 shell，Alpine Linux 可设为 `/bin/ash`。
+`cloudinit.user` 是 Cloud-Init 的登录用户名；为空时使用发行版惯用名（Debian 为
+`debian`、FreeBSD 为 `freebsd`、Amazon Linux 为 `ec2-user` 等），镜像不在已知
+发行版目录下时回退为 `admin`。`cloudinit.password` 可选：为空表示不启用密码登录，
+此时需要配置 SSH 公钥。`cloudinit.sshkeys` 以内联列表提供注入的 SSH 公钥，
+`cloudinit.sshkeys_files` 指向公钥文件列表，两者的内容会按 SSH 指纹合并去重；
+`create` 和 `prepare` 都要求至少配置一个公钥或密码。密码在 `--dry-run` 输出和
+debug 日志中都会被打码。`cloudinit.shell` 设置本地 seed ISO（`prepare`）创建用户
+的登录 shell；设为 `""` 则保留镜像默认 shell，Alpine Linux 可设为 `/bin/ash`。
+Cloud-Init 本身支持在 `user-data` 中配置多个用户，但 Proxmox VE 托管的
+Cloud-Init 只暴露单个 `ciuser`/`cipassword`（多用户需要自定义 `cicustom`
+snippets），因此 `[cloudinit]` 有意只描述一个用户。
 
 `create.storage` 是导入磁盘和 Cloud-Init 驱动器使用的 Proxmox 存储。
 `create.cpu` 设置传给 `qm` 的 CPU 类型（`cputype=...`，默认 `host`，性能最好但

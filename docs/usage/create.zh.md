@@ -46,10 +46,14 @@ qm create 9000 \
     --ipconfig0 ip=dhcp \
     --ciupgrade 0 \
     --ciuser debian \
-    --cipassword debian \
+    --cipassword '********' \
     --sshkeys /tmp/qm-template-sshkeys-XXXX.pub \
     --template 1
 ```
+
+登录名来自 `cloudinit.user`，为空时使用发行版惯用名（上面镜像即 `debian`）；
+未配置密码时不输出 `--cipassword`，未配置公钥时不输出 `--sshkeys`。预览中的
+secret 都被打码，照抄打印结果执行前需要把掩码替换为真实值。
 
 省略 `--vm-id` 时，会从 `qm list` 与 `/etc/pve/qemu-server/*.conf` 合并收集已占用
 的 ID，并使用从 `vmid.start`（默认 `9000`）开始、以 `vmid.step` 递增的首个空闲 ID。
@@ -78,7 +82,7 @@ API 模式要求 Proxmox VE 8.4 或更新。镜像以 `content=import` 上传到
 `.img` 镜像也能使用。VM ID 从集群获取（`GET /cluster/nextid`），
 `vmid.start`/`vmid.step` 依然有效。创建失败时会自动删除残留的 VM。`--dry-run`
 会打印上传和 `POST /api2/json/nodes/<node>/qemu` 请求（与本地 `qm create`
-一样，密码会显示出来）。选中的主机可以覆盖全局的 `[create]`、`[vmid]` 和
+一样，密码和 SSH 公钥都会被打码）。选中的主机可以覆盖全局的 `[create]`、`[vmid]` 和
 `[cloudinit]` 设置，见[配置](../configuration.md)。
 
 远程主机需要一次性准备：
