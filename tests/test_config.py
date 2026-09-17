@@ -356,6 +356,11 @@ def test_ssh_key_fingerprint_ignores_short_lines():
     assert ssh_key_fingerprint("") is None
 
 
+def test_ssh_key_fingerprint_requires_a_key_type_prefix():
+    assert ssh_key_fingerprint("AAAA valid-base64-without-type") is None
+    assert ssh_key_fingerprint("ecdsa-sha2-nistp256 AAAA") is not None
+
+
 def test_pve_host_settings_parse():
     settings = parse_settings(
         {

@@ -91,12 +91,12 @@ def check_storage(storage: str) -> None:
     if pvesm is None:
         log.warning("pvesm not found, skipping storage validation")
         return
-    status = None
     try:
         status = run([pvesm, "status"], capture=True)
     except QmTemplateError as exc:
         log.debug("%s", exc)
-    if status is None or status.returncode != 0:
+        return
+    if status.returncode != 0:
         log.warning("pvesm status failed, skipping storage validation")
         return
     names = [

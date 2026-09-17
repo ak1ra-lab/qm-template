@@ -100,13 +100,10 @@ def verify_checksum(checksum_text: str, signature: Signature) -> None:
     if signature.kind == "clearsigned":
         verify(signature, None, checksum_text.encode("utf-8"))
         return
-    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as handle:
-        handle.write(checksum_text)
-        staged = Path(handle.name)
-    try:
+    with tempfile.TemporaryDirectory(prefix=f"{PROGRAM}-signature-") as staging:
+        staged = Path(staging) / "checksum.txt"
+        staged.write_text(checksum_text, encoding="utf-8")
         verify(signature, staged, http_get_bytes(signature.url))
-    finally:
-        staged.unlink(missing_ok=True)
 
 
 def verify_image(path: Path, signature: Signature) -> None:

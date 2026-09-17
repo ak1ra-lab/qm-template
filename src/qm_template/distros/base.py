@@ -120,30 +120,37 @@ class Distro(ABC):
             if option.default
         }
 
+    def validated_params(self, params: Mapping[str, object]) -> dict[str, str]:
+        """Check parameters against the declared options, skipping unset ones."""
+        checked: dict[str, str] = {}
+        for key, value in params.items():
+            if value is None:
+                continue
+            option = self.options.get(key)
+            if option is None:
+                supported = ", ".join(sorted(self.options)) or "none"
+                raise QmTemplateError(
+                    f"unknown parameter {key!r} for distro {self.name!r} "
+                    f"(supported: {supported})"
+                )
+            if not option.accepts(str(value)):
+                raise QmTemplateError(
+                    f"invalid {key} {value!r} for distro {self.name!r} "
+                    f"({option.expectation()})"
+                )
+            checked[key] = str(value)
+        return checked
+
     def merge(
         self,
-        config_defaults: Mapping[str, str],
-        overrides: Mapping[str, str | None],
+        config_defaults: Mapping[str, object],
+        overrides: Mapping[str, object],
     ) -> dict[str, str]:
-        params = self.defaults
-        for source in (config_defaults, overrides):
-            for key, value in source.items():
-                if value is None:
-                    continue
-                option = self.options.get(key)
-                if option is None:
-                    supported = ", ".join(sorted(self.options)) or "none"
-                    raise QmTemplateError(
-                        f"unknown parameter {key!r} for distro {self.name!r} "
-                        f"(supported: {supported})"
-                    )
-                if not option.accepts(str(value)):
-                    raise QmTemplateError(
-                        f"invalid {key} {value!r} for distro {self.name!r} "
-                        f"({option.expectation()})"
-                    )
-                params[key] = str(value)
-        return params
+        return {
+            **self.defaults,
+            **self.validated_params(config_defaults),
+            **self.validated_params(overrides),
+        }
 
     @staticmethod
     def newest_in(url: str, pattern: str) -> str:

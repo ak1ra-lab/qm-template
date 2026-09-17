@@ -58,6 +58,9 @@ SSH_KEY_TYPE_PREFIXES = ("ssh-", "ecdsa-sha2-", "sk-")
 
 
 def ssh_key_fingerprint(line: str) -> str | None:
+    """Return the fingerprint of an SSH public key line, or None if not one."""
+    if not line.startswith(SSH_KEY_TYPE_PREFIXES):
+        return None
     fields = line.split()
     if len(fields) < 2:
         return None
@@ -73,9 +76,7 @@ def _check_ssh_key(value: Any) -> str:
     if not isinstance(value, str):
         raise ValueError("entries must be strings")
     stripped = value.strip()
-    if not stripped.startswith(SSH_KEY_TYPE_PREFIXES) or not ssh_key_fingerprint(
-        stripped
-    ):
+    if ssh_key_fingerprint(stripped) is None:
         raise ValueError(f"{value!r} does not look like an SSH public key")
     return stripped
 
@@ -260,21 +261,10 @@ class Settings(BaseSettings):
                 raise ValueError(
                     f"unknown distro {name!r} (run `{PROGRAM} distros` for a list)"
                 )
-            normalized: dict[str, str] = {}
-            for param, value in self.distro[name].model_dump(exclude_none=True).items():
-                option = distro.options.get(param)
-                if option is None:
-                    supported = ", ".join(sorted(distro.options))
-                    raise ValueError(
-                        f"unknown parameter {param!r} for distro {name!r} "
-                        f"(supported: {supported})"
-                    )
-                if not option.accepts(str(value)):
-                    raise ValueError(
-                        f"invalid {param} {value!r} for distro {name!r} "
-                        f"({option.expectation()})"
-                    )
-                normalized[param] = str(value)
+            try:
+                normalized = distro.validated_params(self.distro[name].model_dump())
+            except QmTemplateError as exc:
+                raise ValueError(str(exc)) from exc
             self.distro[name] = DistroOverride.model_validate(normalized)
         return self
 

@@ -5,11 +5,7 @@ from collections.abc import Generator, Sequence
 from pathlib import Path
 
 from qm_template import PROGRAM
-from qm_template.config import (
-    SSH_KEY_TYPE_PREFIXES,
-    CloudInitSettings,
-    ssh_key_fingerprint,
-)
+from qm_template.config import CloudInitSettings, ssh_key_fingerprint
 from qm_template.errors import QmTemplateError
 from qm_template.log import log
 
@@ -24,7 +20,7 @@ def collect_ssh_keys(settings: CloudInitSettings) -> tuple[str, ...]:
         if not line or line.startswith("#"):
             return
         fingerprint = ssh_key_fingerprint(line)
-        if not line.startswith(SSH_KEY_TYPE_PREFIXES) or fingerprint is None:
+        if fingerprint is None:
             if strict:
                 raise QmTemplateError(f"{line!r} does not look like an SSH public key")
             log.warning("Skipping invalid SSH key line: %r", line)
@@ -47,15 +43,10 @@ def collect_ssh_keys(settings: CloudInitSettings) -> tuple[str, ...]:
 
 @contextlib.contextmanager
 def sshkeys_file(keys: Sequence[str]) -> Generator[Path, None, None]:
-    with tempfile.NamedTemporaryFile(
-        "w", prefix=f"{PROGRAM}-sshkeys-", delete=False
-    ) as handle:
-        handle.write("\n".join(keys) + "\n")
-        temporary = Path(handle.name)
-    try:
-        yield temporary
-    finally:
-        temporary.unlink(missing_ok=True)
+    with tempfile.TemporaryDirectory(prefix=f"{PROGRAM}-sshkeys-") as staging:
+        path = Path(staging) / "authorized_keys"
+        path.write_text("\n".join(keys) + "\n", encoding="utf-8")
+        yield path
 
 
 def require_ssh_keys(settings: CloudInitSettings) -> tuple[str, ...]:
