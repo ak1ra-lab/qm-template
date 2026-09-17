@@ -5,8 +5,7 @@ from pathlib import Path
 from qm_template.errors import QmTemplateError
 from qm_template.http import http_get_text
 from qm_template.log import log
-from qm_template.signature import Signature
-from qm_template.signature import verify_checksum as verify_signature
+from qm_template.signature import Signature, verify_checksum_signature
 
 _CHECKSUM_SUFFIXES = {"sha256": ".sha256", "sha512": ".sha512"}
 
@@ -49,7 +48,7 @@ def fetch_checksum(
     log.debug("Fetching checksum from: %s", url)
     text = http_get_text(url)
     if verify and signature is not None and signature.target == "checksum":
-        verify_signature(text, signature)
+        verify_checksum_signature(text, signature)
     return parse_checksum(text, filename)
 
 

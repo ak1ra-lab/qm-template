@@ -7,7 +7,7 @@ from qm_template.signature import (
     Signature,
     valid_fingerprint,
     verify,
-    verify_checksum,
+    verify_checksum_signature,
     verify_image,
 )
 
@@ -95,7 +95,7 @@ def test_verify_rejects_a_nonzero_exit(monkeypatch):
         verify(signature(), None, b"signature")
 
 
-def test_verify_checksum_stages_detached_data(monkeypatch):
+def test_verify_checksum_signature_stages_detached_data(monkeypatch):
     recorded: dict[str, object] = {}
 
     def fake_verify(sig, data, signature_text):
@@ -107,12 +107,12 @@ def test_verify_checksum_stages_detached_data(monkeypatch):
     monkeypatch.setattr(
         "qm_template.signature.http_get_bytes", lambda _url: b"signature text"
     )
-    verify_checksum("checksum text", signature())
+    verify_checksum_signature("checksum text", signature())
     assert recorded["data"] == "checksum text"
     assert recorded["text"] == b"signature text"
 
 
-def test_verify_checksum_handles_a_clearsigned_file(monkeypatch):
+def test_verify_checksum_signature_handles_a_clearsigned_file(monkeypatch):
     recorded: dict[str, object] = {}
 
     def fake_verify(sig, data, signature_text):
@@ -120,7 +120,7 @@ def test_verify_checksum_handles_a_clearsigned_file(monkeypatch):
         recorded["text"] = signature_text
 
     monkeypatch.setattr("qm_template.signature.verify", fake_verify)
-    verify_checksum("signed checksum", signature(kind="clearsigned"))
+    verify_checksum_signature("signed checksum", signature(kind="clearsigned"))
     assert recorded["data"] is None
     assert recorded["text"] == b"signed checksum"
 

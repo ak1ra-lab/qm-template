@@ -34,7 +34,7 @@ def test_fetch_checksum_verifies_the_checksum_signature(monkeypatch):
         lambda _url: f"{DIGEST}  image.qcow2\n",
     )
     monkeypatch.setattr(
-        "qm_template.checksum.verify_signature",
+        "qm_template.checksum.verify_checksum_signature",
         lambda text, sig: verified.append((text, sig)),
     )
     assert (
@@ -55,7 +55,7 @@ def test_fetch_checksum_skips_verification_when_disabled_or_targeting_the_image(
         lambda _url: f"{DIGEST}  image.qcow2\n",
     )
     monkeypatch.setattr(
-        "qm_template.checksum.verify_signature",
+        "qm_template.checksum.verify_checksum_signature",
         lambda *args: verified.append(args),
     )
     fetch_checksum(

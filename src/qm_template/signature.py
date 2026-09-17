@@ -95,7 +95,7 @@ def verify(signature: Signature, data: Path | None, signature_bytes: bytes) -> N
     log.debug("GPG signature verified with key %s", fingerprint)
 
 
-def verify_checksum(checksum_text: str, signature: Signature) -> None:
+def verify_checksum_signature(checksum_text: str, signature: Signature) -> None:
     """Verify the signature of a checksum file."""
     if signature.kind == "clearsigned":
         verify(signature, None, checksum_text.encode("utf-8"))
